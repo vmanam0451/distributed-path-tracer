@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Path Tracer App Stack
+
+Globals:
+  Function:
+    Timeout: 900 # 15 minutes
+
+Resources:
+  PathTraceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Events:
+        PathTrace:
+          Type: Api 
+          Properties:
+            Path: /path-trace
+            Method: get
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ../path-tracer
+      DockerTag: latest
+
+Outputs:
+  PathTraceFunction:
+    Description: "Path Trace Lambda Function ARN"
+    Value: !GetAtt PathTraceFunction.Arn

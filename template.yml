@@ -1,0 +1,13 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM Template for distributed path tracing resources
+
+Resources:
+    PathTracer:
+      Type: AWS::Serverless::Application
+      Properties:
+        Location: ./cloudformation/path-tracer.yaml
+    PathTracerPreprocessor:
+      Type: AWS::Serverless::Application
+      Properties:
+        Location: ./cloudformation/path-tracer-preprocessor.yaml

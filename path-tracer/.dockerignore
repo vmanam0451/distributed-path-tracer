@@ -1,0 +1,8 @@
+Dockerfile
+*.dll
+*.exe
+*.pdb
+/vcpkg_installed
+/out
+/.vs
+compile_commands.json

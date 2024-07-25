@@ -1,0 +1,10 @@
+*.dll
+*.exe
+*.pdb
+/vcpkg_installed
+/out
+/.vs
+/scenes/sponza-new/
+/scenes/jack-of-blades/
+/scenes/sponza/
+compile_commands.json
