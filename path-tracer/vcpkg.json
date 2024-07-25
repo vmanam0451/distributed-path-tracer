@@ -1,0 +1,6 @@
+{
+  "dependencies": [
+    "spdlog",
+    "aws-lambda-cpp"
+  ]
+}

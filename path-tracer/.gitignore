@@ -1,0 +1,9 @@
+*.dll
+*.exe
+*.pdb
+/vcpkg_installed
+/out
+/.vs
+/scenes
+/renders
+compile_commands.json

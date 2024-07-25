@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Path Tracer Preprocessor Debug",
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "invokeTarget": {
+                "target": "code",
+                "projectRoot": "${workspaceFolder}/path-tracer-preprocessor/preprocessor",
+                "lambdaHandler": "app.lambda_handler",
+            },
+            "lambda": {
+                "runtime": "python3.9",
+                "environmentVariables": {}
+            }
+        },
+    ]
+}

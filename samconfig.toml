@@ -1,0 +1,9 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "distributed-path-tracer-stack"
+resolve_s3 = true
+s3_prefix = "distributed-path-tracer-stack"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+image_repositories = []
+confirm_changeset = true
