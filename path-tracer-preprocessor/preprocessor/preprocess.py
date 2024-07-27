@@ -24,7 +24,7 @@ class Preprocesser:
             mesh: Mesh = self.gltf.meshes[node.mesh]
             for primitive in mesh.primitives: print(self.get_primitive_size(primitive))
             
-    def get_primitive_size(self, primitive: Primitive):
+    def get_primitive_size(self, primitive: Primitive) -> int:
         buffer_size, material_size = 0, 0
         
         get_attribute_size = lambda attr: 0 if attr is None else self.gltf.bufferViews[attr].byteLength
@@ -50,7 +50,7 @@ class Preprocesser:
         
         return buffer_size + material_size
     
-    def get_texture_size(self, texture: Optional[Texture]):
+    def get_texture_size(self, texture: Optional[Texture]) -> int:
         if texture is None: return 0
         
         image: Image = self.gltf.images[texture.source]
