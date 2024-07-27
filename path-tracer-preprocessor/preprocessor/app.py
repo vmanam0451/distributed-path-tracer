@@ -25,6 +25,7 @@ def lambda_handler(event, context):
 
     preprocessor = Preprocessor(scene_bucket='path-tracer-scene')    
     preprocessor.get_split_scene()
+    
     return {
         "statusCode": 200,
         "body": json.dumps(

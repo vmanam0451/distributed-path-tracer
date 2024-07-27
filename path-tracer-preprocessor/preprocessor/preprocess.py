@@ -23,7 +23,7 @@ class Preprocesser:
             if node.mesh is None: continue            
                 
             mesh: Mesh = self.gltf.meshes[node.mesh]
-            for primitive in mesh.primitives: print(get_primitive_size(primitive))
+            for primitive in mesh.primitives: print(self.get_primitive_size(primitive))
             
     def get_primitive_size(self, primitive: Primitive):
         # Buffer size
