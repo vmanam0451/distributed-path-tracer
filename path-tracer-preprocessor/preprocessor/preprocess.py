@@ -15,9 +15,8 @@ class Preprocesser:
         current_worker_id = 1
         scene: Scene = self.gltf.scenes[0]
 
-        node_idx: Optional[int]
+        node_idx: int
         for node_idx in scene.nodes:
-            if node_idx is None: continue
             node: Node = self.gltf.nodes[node_idx]
             
             if node.mesh is None: continue            
@@ -52,8 +51,7 @@ class Preprocesser:
         return buffer_size + material_size
     
     def get_texture_size(self, texture: Optional[Texture]):
-        if texture is None:
-            return 0
+        if texture is None: return 0
         
         image: Image = self.gltf.images[texture.source]
         
