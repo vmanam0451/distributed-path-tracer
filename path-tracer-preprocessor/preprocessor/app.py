@@ -23,8 +23,6 @@ def lambda_handler(event, context):
         Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
     """
 
-    x = 2
-
     return {
         "statusCode": 200,
         "body": json.dumps(
