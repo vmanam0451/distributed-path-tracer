@@ -26,7 +26,6 @@ class Preprocesser:
             for primitive in mesh.primitives: print(self.get_primitive_size(primitive))
             
     def get_primitive_size(self, primitive: Primitive):
-        # Buffer size
         buffer_size, material_size = 0, 0
         
         get_attribute_size = lambda attr: 0 if attr is None else self.gltf.bufferViews[attr].byteLength
@@ -40,14 +39,13 @@ class Preprocesser:
 
         buffer_size += pos_length + normal_length + tangent_length + texcoord_length
         
-        get_material_size = lambda texture: self.get_texture_size(texture)
         material: Material = self.gltf.materials[primitive.material]
         
-        normal_tex_size = get_material_size(material.normalTexture)
-        occlusion_tex_size = get_material_size(material.occlusionTexture)
-        emissive_tex_size = get_material_size(material.emissiveTexture)
-        base_color_tex_size = get_material_size(material.pbrMetallicRoughness.baseColorTexture)
-        metallic_roughness_tex_size = get_material_size(material.pbrMetallicRoughness.metallicRoughnessTexture) 
+        normal_tex_size = self.get_texture_size(material.normalTexture)
+        occlusion_tex_size = self.get_texture_size(material.occlusionTexture)
+        emissive_tex_size = self.get_texture_size(material.emissiveTexture)
+        base_color_tex_size = self.get_texture_size(material.pbrMetallicRoughness.baseColorTexture)
+        metallic_roughness_tex_size = self.get_texture_size(material.pbrMetallicRoughness.metallicRoughnessTexture) 
         
         material_size += normal_tex_size + occlusion_tex_size + emissive_tex_size + base_color_tex_size + metallic_roughness_tex_size
         
