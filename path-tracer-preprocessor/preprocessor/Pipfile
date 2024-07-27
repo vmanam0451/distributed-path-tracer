@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 requests = "*"
 pygltflib = "*"
+boto3 = "*"
 
 [dev-packages]
 

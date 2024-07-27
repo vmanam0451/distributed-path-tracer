@@ -1,5 +1,5 @@
 import json
-
+from preprocessor import Preprocessor
 
 def lambda_handler(event, context):
     """Sample pure Lambda function
@@ -23,6 +23,8 @@ def lambda_handler(event, context):
         Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
     """
 
+    preprocessor = Preprocessor(scene_bucket='path-tracer-scene')    
+    preprocessor.get_split_scene()
     return {
         "statusCode": 200,
         "body": json.dumps(
