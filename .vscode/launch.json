@@ -7,12 +7,18 @@
             "request": "direct-invoke",
             "invokeTarget": {
                 "target": "code",
-                "projectRoot": "${workspaceFolder}/path-tracer-preprocessor/preprocessor",
+                "projectRoot": "${workspaceFolder}/path-tracer-preprocessor/preprocessor-function",
                 "lambdaHandler": "app.lambda_handler",
             },
             "lambda": {
                 "runtime": "python3.9",
                 "environmentVariables": {}
+            },
+            "sam": {
+                "containerBuild": true
+            },
+            "aws": {
+                "credentials": "profile:path-tracer-preprocessor"
             }
         },
     ]
