@@ -24,13 +24,9 @@ def lambda_handler(event, context):
     """
 
     preprocessor = Preprocessor(scene_bucket='distributed-path-tracer', scene_root='scenes/sponza-new')    
-    preprocessor.get_split_scene()
+    split_scene = preprocessor.get_split_scene()
     
     return {
         "statusCode": 200,
-        "body": json.dumps(
-            {
-                "message": "hello world",
-            }
-        ),
+        "body": json.dumps(split_scene),
     }
