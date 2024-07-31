@@ -2,6 +2,7 @@ import json
 import boto3
 from typing import List
 import yaml
+import os
 
 from preprocess.preprocessor import Preprocessor
 
@@ -31,7 +32,8 @@ def lambda_handler(event, context):
         Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
     """
     
-    with open("data.yaml", 'r') as stream:
+    config_file = "prod.yml" if os.environ.get('prod') else "local.yml"
+    with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
 
     preprocessor = Preprocessor(scene_bucket='distributed-path-tracer', scene_root='scenes/sponza-new')    
@@ -39,14 +41,18 @@ def lambda_handler(event, context):
     
     session = boto3.session.Session()
     
+    sns_config = boto3.session.Config(proxies={"http": config['sns']['url']})
     sns_client = session.client(
         service_name='sns',
-        region_name=config['sns']['region'],
-        endpoint_url=config['sns']['url']
+        region_name='us-east-1',
+        config=sns_config
     )
     
-    sns_client.create_topic(Name='{}-topic'.format('sponza-scene'))
-    
+    try:
+        response = sns_client.create_topic(Name='{}-topic'.format('sponza-scene'))
+        print(response)
+    except Exception as e:
+        print(e)
     return {
         "statusCode": 200,
         "body": json.dumps(split_scene),

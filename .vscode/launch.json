@@ -12,7 +12,9 @@
             },
             "lambda": {
                 "runtime": "python3.9",
-                "environmentVariables": {}
+                "environmentVariables": {
+                    "profile": "local"
+                }
             },
             "sam": {
                 "containerBuild": true
