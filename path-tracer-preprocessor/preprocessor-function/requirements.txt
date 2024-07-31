@@ -1,3 +1,4 @@
 requests
 pygltflib
 boto3
+pyyaml
