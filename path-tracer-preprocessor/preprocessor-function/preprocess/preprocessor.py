@@ -2,8 +2,12 @@ from typing import TypedDict
 from pygltflib import *
 import boto3
 
+class WorkerInfo(TypedDict):
+    work: Dict[str, List[int]] # mesh name -> list of primtive indices
+    total_size: float
+    
 class SplitScene(TypedDict):
-    split_work: Dict[int, Dict[str, List[int]]] # mesh name -> list of primtive indices
+    split_work: Dict[int, WorkerInfo]
     total_size: float
 
 
@@ -49,11 +53,13 @@ class Preprocessor:
                 total_size += prim_size
                 
                 if current_worker_id not in split_scene['split_work']:
-                    split_scene['split_work'][current_worker_id] = {}
+                    split_scene['split_work'][current_worker_id] = {"work": {}, "total_size": 0}
                         
-                work = split_scene['split_work'][current_worker_id]
+                worker_info = split_scene['split_work'][current_worker_id]
+                work = worker_info['work']
                 if mesh.name not in work: work[mesh.name] = []
                 work[mesh.name].append(prim_id)
+                worker_info['total_size'] += prim_size
                     
                 if (current_size + prim_size) >= self.memory_per_worker_GB or (current_primitive >= total_primitives / self.num_workers):
                     current_worker_id += 1

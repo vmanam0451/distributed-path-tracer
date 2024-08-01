@@ -28,26 +28,11 @@ def create_queues(worker_ids: List[int]):
     pass
 
 def lambda_handler(event, context):
-    """Sample pure Lambda function
-
-    Parameters
-    ----------
-    event: dict, required
-        API Gateway Lambda Proxy Input Format
-
-        Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-    context: object, required
-        Lambda Context runtime methods and attributes
-
-        Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
-
-    Returns
-    ------
-    API Gateway Lambda Proxy Output Format: dict
-
-        Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-    """
+    function_input = event['body']
+    
+    scene_bucket = function_input['scene_bucket']
+    scene_key = function_input['scene_key']
+    scene_name = function_input['scene_name']
     
     config_file = "prod.yml" if os.environ.get('prod') else "local.yml"
     env = 'prod' if os.environ.get('prod') else 'local'
@@ -55,10 +40,10 @@ def lambda_handler(event, context):
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
 
-    preprocessor = Preprocessor(scene_bucket='distributed-path-tracer', scene_root='scenes/sponza-new')    
+    preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key)    
     split_scene = preprocessor.get_split_scene()
     
-    sns_response = create_topic(env, config, '{}-topic'.format('sponza-new'))
+    sns_response = create_topic(env, config, '{}-topic'.format(scene_name))
     print(sns_response)
 
     return {

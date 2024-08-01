@@ -14,6 +14,15 @@
                 "runtime": "python3.9",
                 "environmentVariables": {
                     "profile": "local"
+                },
+                "payload": {
+                    "json": {
+                        "body": {
+                            "scene_bucket": "distributed-path-tracer", 
+                            "scene_key": "scenes/sponza-new",
+                            "scene_name": "sponza-new"
+                        }
+                    }
                 }
             },
             "sam": {
