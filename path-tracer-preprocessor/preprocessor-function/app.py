@@ -60,15 +60,16 @@ def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: Lis
     
     master_queue_arn = create_and_subscribe_worker_queue('master')
     worker_queues['master'] = master_queue_arn
-            
-    for worker_id in worker_ids:
-        try:
+        
+    try:   
+        for worker_id in worker_ids:
             queue_arn = create_and_subscribe_worker_queue(str(worker_id))
             worker_queues[worker_id] = queue_arn
-            return worker_queues
-            
-        except Exception as e:
-            print("Error creating queue: {}".format(e))
+                    
+        return worker_queues
+    
+    except Exception as e:
+        print("Error creating queue: {}".format(e))
 
 def lambda_handler(event, context):
     function_input = event['body']
@@ -103,49 +104,14 @@ def lambda_handler(event, context):
     
     topic_arn = sns_response['TopicArn']
 
-    try:
-        worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
     
-        output = {
-            "scene": split_scene,
-            "queues": worker_queues
-        }
+    worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
     
-        message = {
-            "worker_id": "1",
-            "message": "Test"
-        }
+    output = {
+        "scene": split_scene,
+        "queues": worker_queues
+    }
     
-        response = sns_client.publish(
-            TargetArn=topic_arn,
-            Message=json.dumps({'default': json.dumps(message)}),
-            MessageStructure='json'
-        )
-    
-        message = {
-            "worker_id": "master",
-            "message": "Test for master"
-        }
-    
-        response = sns_client.publish(
-            TargetArn=topic_arn,
-            Message=json.dumps({'default': json.dumps(message)}),
-            MessageStructure='json'
-        )
-    
-        message = {
-            "worker_id": "ALL",
-            "message": "Test for ALL"
-        }
-    
-        response = sns_client.publish(
-            TargetArn=topic_arn,
-            Message=json.dumps({'default': json.dumps(message)}),
-            MessageStructure='json'
-        )
-    
-    except Exception as e:
-        print(e)
     return {
         "statusCode": 200,
         "body": json.dumps(output),
