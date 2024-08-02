@@ -13,7 +13,6 @@
             "lambda": {
                 "runtime": "python3.9",
                 "environmentVariables": {
-                    "profile": "local"
                 },
                 "payload": {
                     "json": {
