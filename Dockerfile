@@ -18,11 +18,8 @@ RUN dnf install -y kernel-devel
 # Install LLVM
 RUN dnf install -y clang
 
-WORKDIR /app
+# Install python3.9
+RUN yum install python39
+
+WORKDIR /distributed-path-tracer
 COPY . .
-
-RUN cmake --preset x64-release-linux
-RUN cmake --build --preset x64-release-linux
-
-EXPOSE 6666
-CMD ["./PathTracer"]
