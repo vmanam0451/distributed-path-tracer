@@ -1,6 +1,6 @@
 FROM public.ecr.aws/amazonlinux/amazonlinux:latest
 
-RUN yum update -y && yum install -y git
+RUN yum update -y && yum install -y git && yum install -y git-lfs
 RUN yum install -y zip unzip tar
 
 # Setup Vcpkg
@@ -20,6 +20,8 @@ RUN dnf install -y clang
 
 # Install python3.9
 RUN yum install python39
+RUN python3.9 -m ensurepip --upgrade
+RUN pip3 install pipenv --user
 
 WORKDIR /distributed-path-tracer
 COPY . .
