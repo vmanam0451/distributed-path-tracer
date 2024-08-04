@@ -31,8 +31,6 @@ set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 file(GLOB_RECURSE SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 
-set(BUILD_SHARED_LIBS ON)
-
 find_package(spdlog CONFIG REQUIRED)
 find_package(aws-lambda-runtime REQUIRED)
 find_package(AWSSDK REQUIRED COMPONENTS s3 sns sqs)
