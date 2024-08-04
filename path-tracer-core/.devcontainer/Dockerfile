@@ -1,7 +1,7 @@
 FROM amazonlinux:latest
 
 
-RUN yum update -y && yum install -y git
+RUN yum update -y && yum install -y git git-lfs
 RUN yum install -y zip unzip tar
 
 # Setup Vcpkg
