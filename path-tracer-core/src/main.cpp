@@ -6,11 +6,20 @@
 #include "spdlog/spdlog.h"
 
 #include <aws/lambda-runtime/runtime.h>
+#include <aws/core/Aws.h>
 
 using namespace math;
 
 aws::lambda_runtime::invocation_response my_handler(aws::lambda_runtime::invocation_request const& request) {
+	Aws::SDKOptions options;
+   	Aws::InitAPI(options);
+   	{
+      // make your SDK calls here.
+   	}
+   	Aws::ShutdownAPI(options);
+
 	core::renderer renderer;
+	
 	renderer.sample_count = 25;
 	renderer.bounce_count = 4;
 	renderer.resolution = uvec2(1920, 1080);

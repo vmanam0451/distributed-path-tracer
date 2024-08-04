@@ -19,7 +19,7 @@ Resources:
             Method: get
     Metadata:
       Dockerfile: Dockerfile
-      DockerContext: ../path-tracer
+      DockerContext: ../path-tracer-core
       DockerTag: latest
 
 Outputs:

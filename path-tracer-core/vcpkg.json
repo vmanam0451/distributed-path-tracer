@@ -1,6 +1,11 @@
 {
   "dependencies": [
     "spdlog",
-    "aws-lambda-cpp"
+     "aws-lambda-cpp",
+     {
+      "name": "aws-sdk-cpp",
+      "default-features": false,
+      "features": ["s3", "sns", "sqs"]
+    }
   ]
 }

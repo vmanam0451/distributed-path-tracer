@@ -3,7 +3,7 @@
 {
   "name": "Path Tracer Core",
   "build": {
-    "dockerfile": "../Dockerfile"
+    "dockerfile": "Dockerfile"
   },
 
   // Configure tool-specific properties.
@@ -15,11 +15,11 @@
 
       // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools-extension-pack"
       ]
     }
-  },
-
-  "workspaceFolder": "/app"
+  }
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   // "forwardPorts": [],
 
