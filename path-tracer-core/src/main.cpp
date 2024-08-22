@@ -24,7 +24,7 @@ aws::lambda_runtime::invocation_response my_handler(aws::lambda_runtime::invocat
 
 	const std::string& payload = request.payload;
 	json work_info_json = json::parse(payload);
-	WorkInfo work_info = work_info_json.template get<WorkInfo>();
+	WorkInfo work_info = work_info_json.get<WorkInfo>();
 
 	// core::renderer renderer;
 	
