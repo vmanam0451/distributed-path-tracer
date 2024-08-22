@@ -56,12 +56,12 @@ def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: Lis
         except Exception as e:
             print("Error creating queue: {}".format(e))
         
-    worker_queues = {}
+    try:
+        worker_queues = {}
     
-    master_queue_arn = create_and_subscribe_worker_queue('master')
-    worker_queues['master'] = master_queue_arn
-        
-    try:   
+        master_queue_arn = create_and_subscribe_worker_queue('master')
+        worker_queues['master'] = master_queue_arn
+          
         for worker_id in worker_ids:
             queue_arn = create_and_subscribe_worker_queue(str(worker_id))
             worker_queues[worker_id] = queue_arn
@@ -100,16 +100,13 @@ def lambda_handler(event, context):
     )
         
     sns_response = create_topic(sns_client, '{}-topic'.format(scene_name))
-    print(sns_response)
-    
     topic_arn = sns_response['TopicArn']
-
-    
     worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
     
     output = {
         "scene": split_scene,
-        "queues": worker_queues
+        "queues": worker_queues,
+        "topic_arn": topic_arn
     }
     
     return {

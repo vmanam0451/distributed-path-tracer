@@ -34,12 +34,13 @@ file(GLOB_RECURSE SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 find_package(spdlog CONFIG REQUIRED)
 find_package(aws-lambda-runtime REQUIRED)
 find_package(AWSSDK REQUIRED COMPONENTS s3 sns sqs)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 include_directories(${INCLUDE_DIR})
 add_executable (${TARGET} ${SRC})
 
 set_target_properties(${TARGET} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(${TARGET} path_tracer_lib spdlog::spdlog_header_only AWS::aws-lambda-runtime ${AWSSDK_LINK_LIBRARIES})
+target_link_libraries(${TARGET} path_tracer_lib spdlog::spdlog_header_only nlohmann_json::nlohmann_json AWS::aws-lambda-runtime ${AWSSDK_LINK_LIBRARIES})
 
 aws_lambda_package_target(${TARGET})
 
