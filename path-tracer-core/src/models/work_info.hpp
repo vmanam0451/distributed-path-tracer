@@ -5,23 +5,23 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
-struct WorkerInfo {
+struct worker_info {
     std::map<std::string, std::vector<int>> work;
     float total_size;
 };
 
-struct SplitScene {
-    std::map<int, WorkerInfo> split_work;
+struct split_scene {
+    std::map<int, worker_info> split_work;
     float total_size;
 };
 
-struct WorkInfo {
-    SplitScene split_scene;
+struct work_info {
+    split_scene scene;
     std::string worker_id;
     std::string sqs_queue_arn;
     std::string sns_topic_arn;
 };
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(WorkerInfo, work, total_size)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SplitScene, split_work, total_size)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(WorkInfo, split_scene, worker_id, sqs_queue_arn, sns_topic_arn)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(worker_info, work, total_size)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(split_scene, split_work, total_size)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(work_info, scene, worker_id, sqs_queue_arn, sns_topic_arn)
