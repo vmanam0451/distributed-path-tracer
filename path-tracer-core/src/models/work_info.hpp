@@ -17,10 +17,11 @@ struct SplitScene {
 
 struct WorkInfo {
     SplitScene split_scene;
-    std::map<std::string, std::string> worker_queues;
+    std::string worker_id;
+    std::string sqs_queue_arn;
     std::string sns_topic_arn;
 };
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(WorkerInfo, work, total_size)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SplitScene, split_work, total_size)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(WorkInfo, split_scene, worker_queues, sns_topic_arn)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(WorkerInfo, work, total_size)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SplitScene, split_work, total_size)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(WorkInfo, split_scene, worker_id, sqs_queue_arn, sns_topic_arn)
