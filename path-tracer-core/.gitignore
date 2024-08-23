@@ -3,6 +3,6 @@
 *.pdb
 /vcpkg_installed
 /out
-/.vs
+/.cache
 /scenes/sponza
 compile_commands.json
