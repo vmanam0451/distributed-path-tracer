@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <fstream>
 
 #include <cgltf/custom_cgltf.h>
 
