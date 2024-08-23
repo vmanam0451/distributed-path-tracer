@@ -6,3 +6,4 @@
 /.cache
 /scenes/sponza
 compile_commands.json
+PathTracer
