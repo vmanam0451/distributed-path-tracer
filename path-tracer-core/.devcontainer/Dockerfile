@@ -15,7 +15,7 @@ RUN yum install -y cmake ninja-build
 
 
 # Install LLVM
-RUN dnf install -y clang
+RUN dnf install -y clang clang-tools-extra
 
 # Install AWS Dependencies
 RUN dnf install -y kernel-devel
