@@ -1,6 +1,6 @@
-#include "image/image.hpp"
+#include "path_tracer/image/image.hpp"
 
-#include "math/math.hpp"
+#include "path_tracer/math/math.hpp"
 
 using namespace math;
 

@@ -1,15 +1,15 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "core/material.hpp"
-#include "core/mesh.hpp"
-#include "image/texture.hpp"
-#include "math/vec2.hpp"
-#include "math/vec3.hpp"
-#include "scene/camera.hpp"
-#include "scene/entity.hpp"
-#include "scene/sun_light.hpp"
+#include "path_tracer/core/material.hpp"
+#include "path_tracer/core/mesh.hpp"
+#include "path_tracer/image/texture.hpp"
+#include "path_tracer/math/vec2.hpp"
+#include "path_tracer/math/vec3.hpp"
+#include "path_tracer/scene/camera.hpp"
+#include "path_tracer/scene/entity.hpp"
+#include "path_tracer/scene/sun_light.hpp"
 
 namespace core {
 	class renderer {

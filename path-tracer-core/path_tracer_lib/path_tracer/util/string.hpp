@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
 namespace util {
 	template <typename T>
@@ -18,4 +18,4 @@ namespace util {
 	                                  const std::string& delimiter, bool skip_empty = false);
 }
 
-#include "string.inl"
+#include "path_tracer/util/string.inl"

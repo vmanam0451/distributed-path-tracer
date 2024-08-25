@@ -1,8 +1,8 @@
 #pragma once
 
-#include "geometry/ray.hpp"
-#include "math/vec2.hpp"
-#include "scene/component.hpp"
+#include "path_tracer/geometry/ray.hpp"
+#include "path_tracer/math/vec2.hpp"
+#include "path_tracer/scene/component.hpp"
 
 namespace scene {
 	class camera : public component {

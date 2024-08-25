@@ -1,4 +1,4 @@
-#include "scene/entity.hpp"
+#include "path_tracer/scene/entity.hpp"
 
 namespace scene {
 	entity::entity() : name("entity") {

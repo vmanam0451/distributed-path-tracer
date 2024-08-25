@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
 namespace util {
 	class future;

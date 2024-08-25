@@ -1,4 +1,4 @@
-#include "util/string.hpp"
+#include "path_tracer/util/string.hpp"
 
 namespace math {
 	template <scalar T>

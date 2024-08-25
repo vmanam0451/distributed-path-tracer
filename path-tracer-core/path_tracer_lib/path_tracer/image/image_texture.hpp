@@ -1,11 +1,11 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "image/image.hpp"
-#include "image/texture.hpp"
-#include "math/vec2.hpp"
-#include "math/vec4.hpp"
+#include "path_tracer/image/image.hpp"
+#include "path_tracer/image/texture.hpp"
+#include "path_tracer/math/vec2.hpp"
+#include "path_tracer/math/vec4.hpp"
 
 namespace image {
 	class image_texture : public texture {

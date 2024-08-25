@@ -1,6 +1,6 @@
-#include "util/string.hpp"
+#include "path_tracer/util/string.hpp"
 
-#include "math/math.hpp"
+#include "path_tracer/math/math.hpp"
 
 namespace util {
 	template <typename T>

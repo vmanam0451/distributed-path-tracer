@@ -1,6 +1,6 @@
-#include "geometry/aabb.hpp"
+#include "path_tracer/geometry/aabb.hpp"
 
-#include "math/math.hpp"
+#include "path_tracer/math/math.hpp"
 
 using namespace math;
 

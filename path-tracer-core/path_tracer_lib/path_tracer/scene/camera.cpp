@@ -1,7 +1,7 @@
-#include "scene/camera.hpp"
+#include "path_tracer/scene/camera.hpp"
 
-#include "math/math.hpp"
-#include "math/vec3.hpp"
+#include "path_tracer/math/math.hpp"
+#include "path_tracer/math/vec3.hpp"
 
 using namespace geometry;
 using namespace math;

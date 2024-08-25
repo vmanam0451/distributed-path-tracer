@@ -1,9 +1,9 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "math/math.hpp"
-#include "math/vec2.hpp"
+#include "path_tracer/math/math.hpp"
+#include "path_tracer/math/vec2.hpp"
 
 namespace math {
 	template <scalar T>
@@ -219,4 +219,4 @@ namespace math {
 #pragma endregion
 }
 
-#include "vec3.inl"
+#include "path_tracer/math/vec3.inl"

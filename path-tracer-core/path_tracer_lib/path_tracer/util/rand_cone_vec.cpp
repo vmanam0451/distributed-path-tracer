@@ -1,6 +1,6 @@
-#include "rand_cone_vec.hpp"
+#include "path_tracer/util/rand_cone_vec.hpp"
 
-#include "math/mat3.hpp"
+#include "path_tracer/math/mat3.hpp"
 
 using namespace math;
 

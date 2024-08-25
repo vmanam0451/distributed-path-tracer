@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
 namespace math {
 	template <typename T>
@@ -165,4 +165,4 @@ namespace math {
 	inline int32_t step(Edge edge, X x);
 }
 
-#include "math.inl"
+#include "path_tracer/math/math.inl"

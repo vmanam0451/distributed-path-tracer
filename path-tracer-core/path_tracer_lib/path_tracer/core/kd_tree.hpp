@@ -1,10 +1,10 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "geometry/aabb.hpp"
-#include "geometry/ray.hpp"
-#include "geometry/triangle.hpp"
+#include "path_tracer/geometry/aabb.hpp"
+#include "path_tracer/geometry/ray.hpp"
+#include "path_tracer/geometry/triangle.hpp"
 
 namespace core {
 	class kd_tree_node {

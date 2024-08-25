@@ -1,4 +1,4 @@
-#include "core/material.hpp"
+#include "path_tracer/core/material.hpp"
 
 using namespace math;
 

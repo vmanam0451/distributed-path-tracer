@@ -1,9 +1,9 @@
-#include "core/pbr.hpp"
+#include "path_tracer/core/pbr.hpp"
 
-#include "math/math.hpp"
-#include "math/quat.hpp"
-#include "math/mat3.hpp"
-#include "util/rand_cone_vec.hpp"
+#include "path_tracer/math/math.hpp"
+#include "path_tracer/math/quat.hpp"
+#include "path_tracer/math/mat3.hpp"
+#include "path_tracer/util/rand_cone_vec.hpp"
 
 using namespace math;
 

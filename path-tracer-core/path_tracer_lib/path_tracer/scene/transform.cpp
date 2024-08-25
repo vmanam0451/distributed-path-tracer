@@ -1,6 +1,6 @@
-#include "scene/transform.hpp"
+#include "path_tracer/scene/transform.hpp"
 
-#include "util/string.hpp"
+#include "path_tracer/util/string.hpp"
 
 using namespace math;
 

@@ -1,4 +1,4 @@
-#include "./thread_pool.hpp"
+#include "path_tracer/util/thread_pool.hpp"
 
 namespace util {
 	thread_pool thread_pool::common_pool;

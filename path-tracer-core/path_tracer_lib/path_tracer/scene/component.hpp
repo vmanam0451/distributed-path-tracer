@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
 namespace scene {
 	class entity;
@@ -19,4 +19,4 @@ namespace scene {
 	};
 }
 
-#include "scene/entity.hpp"
+#include "path_tracer/scene/entity.hpp"

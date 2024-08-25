@@ -1,10 +1,10 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "math/mat3.hpp"
-#include "math/quat.hpp"
-#include "math/vec3.hpp"
+#include "path_tracer/math/mat3.hpp"
+#include "path_tracer/math/quat.hpp"
+#include "path_tracer/math/vec3.hpp"
 
 namespace scene {
 	class transform {

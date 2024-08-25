@@ -1,6 +1,6 @@
-#include "scene/model.hpp"
+#include "path_tracer/scene/model.hpp"
 
-#include "math/vec3.hpp"
+#include "path_tracer/math/vec3.hpp"
 
 using namespace geometry;
 using namespace math;

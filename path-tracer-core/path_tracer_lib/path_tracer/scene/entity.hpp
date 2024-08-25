@@ -1,9 +1,9 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "scene/component.hpp"
-#include "scene/transform.hpp"
+#include "path_tracer/scene/component.hpp"
+#include "path_tracer/scene/transform.hpp"
 
 namespace scene {
 	class entity : public std::enable_shared_from_this<entity> {
@@ -56,4 +56,4 @@ namespace scene {
 	};
 }
 
-#include "entity.inl"
+#include "path_tracer/scene/entity.inl"

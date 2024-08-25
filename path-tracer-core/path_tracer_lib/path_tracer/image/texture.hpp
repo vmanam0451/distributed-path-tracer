@@ -1,7 +1,7 @@
 #pragma once
 
-#include "math/vec2.hpp"
-#include "math/vec4.hpp"
+#include "path_tracer/math/vec2.hpp"
+#include "path_tracer/math/vec4.hpp"
 
 namespace image {
 	class texture {

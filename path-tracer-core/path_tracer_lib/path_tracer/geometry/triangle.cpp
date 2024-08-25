@@ -1,6 +1,6 @@
-#include "geometry/triangle.hpp"
+#include "path_tracer/geometry/triangle.hpp"
 
-#include "math/mat3.hpp"
+#include "path_tracer/math/mat3.hpp"
 
 using namespace math;
 

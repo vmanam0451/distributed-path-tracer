@@ -1,9 +1,9 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "math.hpp"
-#include "math/vec3.hpp"
+#include "path_tracer/math/math.hpp"
+#include "path_tracer/math/vec3.hpp"
 
 namespace math {
 	template <scalar T>
@@ -154,4 +154,4 @@ namespace math {
 	mat3<T> transpose(const mat3<T>& mat);
 }
 
-#include "mat3.inl"
+#include "path_tracer/math/mat3.inl"

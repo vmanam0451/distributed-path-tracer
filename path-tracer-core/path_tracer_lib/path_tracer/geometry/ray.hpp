@@ -1,7 +1,7 @@
 #pragma once
 
-#include "math/vec3.hpp"
-#include "scene/transform.hpp"
+#include "path_tracer/math/vec3.hpp"
+#include "path_tracer/scene/transform.hpp"
 
 namespace geometry {
 	class ray {

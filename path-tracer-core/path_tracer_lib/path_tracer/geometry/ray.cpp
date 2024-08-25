@@ -1,4 +1,4 @@
-#include "geometry/ray.hpp"
+#include "path_tracer/geometry/ray.hpp"
 
 using namespace math;
 

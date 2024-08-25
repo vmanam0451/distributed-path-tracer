@@ -1,13 +1,13 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "core/kd_tree.hpp"
-#include "core/material.hpp"
-#include "core/vertex.hpp"
-#include "geometry/ray.hpp"
-#include "math/vec2.hpp"
-#include "math/vec3.hpp"
+#include "path_tracer/core/kd_tree.hpp"
+#include "path_tracer/core/material.hpp"
+#include "path_tracer/core/vertex.hpp"
+#include "path_tracer/geometry/ray.hpp"
+#include "path_tracer/math/vec2.hpp"
+#include "path_tracer/math/vec3.hpp"
 
 namespace core {
 	struct mesh {

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "math/math.hpp"
-#include "math/mat3.hpp"
-#include "math/vec3.hpp"
-#include "util/string.hpp"
+#include "path_tracer/math/math.hpp"
+#include "path_tracer/math/mat3.hpp"
+#include "path_tracer/math/vec3.hpp"
+#include "path_tracer/util/string.hpp"
 
 namespace math {
 	struct quat {
@@ -127,4 +127,4 @@ namespace math {
 	quat slerp(const quat& from, const quat& to, float weight);
 }
 
-#include "quat.inl"
+#include "path_tracer/math/quat.inl"

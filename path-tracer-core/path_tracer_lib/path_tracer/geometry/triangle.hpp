@@ -1,7 +1,7 @@
 #pragma once
 
-#include "math/vec3.hpp"
-#include "geometry/ray.hpp"
+#include "path_tracer/math/vec3.hpp"
+#include "path_tracer/geometry/ray.hpp"
 
 namespace geometry {
 	struct triangle {

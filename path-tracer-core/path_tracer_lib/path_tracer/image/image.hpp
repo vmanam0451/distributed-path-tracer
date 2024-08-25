@@ -1,8 +1,8 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "math/vec2.hpp"
+#include "path_tracer/math/vec2.hpp"
 
 namespace image {
 	class image {

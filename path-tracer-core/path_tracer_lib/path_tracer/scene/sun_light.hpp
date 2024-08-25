@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../math/vec3.hpp"
-#include "component.hpp"
+#include "path_tracer/math/vec3.hpp"
+#include "path_tracer/scene/component.hpp"
 
 namespace scene {
 	class sun_light : public component {

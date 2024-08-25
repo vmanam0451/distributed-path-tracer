@@ -1,4 +1,4 @@
-#include "math/quat.hpp"
+#include "path_tracer/math/quat.hpp"
 
 namespace math {
 	const quat quat::identity(1);

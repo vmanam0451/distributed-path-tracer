@@ -1,7 +1,7 @@
 #pragma once
 
-#include "math/vec2.hpp"
-#include "math/vec3.hpp"
+#include "path_tracer/math/vec2.hpp"
+#include "path_tracer/math/vec3.hpp"
 
 namespace core {
 	struct vertex {

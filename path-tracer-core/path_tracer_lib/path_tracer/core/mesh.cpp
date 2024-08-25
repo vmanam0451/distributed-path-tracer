@@ -1,6 +1,6 @@
-#include "core/mesh.hpp"
+#include "path_tracer/core/mesh.hpp"
 
-#include "geometry/triangle.hpp"
+#include "path_tracer/geometry/triangle.hpp"
 
 using namespace geometry;
 using namespace math;

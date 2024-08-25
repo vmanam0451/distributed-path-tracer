@@ -1,13 +1,13 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "core/material.hpp"
-#include "core/mesh.hpp"
-#include "geometry/aabb.hpp"
-#include "geometry/ray.hpp"
-#include "scene/component.hpp"
-#include "scene/transform.hpp"
+#include "path_tracer/core/material.hpp"
+#include "path_tracer/core/mesh.hpp"
+#include "path_tracer/geometry/aabb.hpp"
+#include "path_tracer/geometry/ray.hpp"
+#include "path_tracer/scene/component.hpp"
+#include "path_tracer/scene/transform.hpp"
 
 namespace scene {
 	class model : public scene::component {

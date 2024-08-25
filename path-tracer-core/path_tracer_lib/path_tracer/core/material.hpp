@@ -1,9 +1,9 @@
 #pragma once
 
-#include "pch.hpp"
+#include "path_tracer/pch.hpp"
 
-#include "image/texture.hpp"
-#include "math/vec3.hpp"
+#include "path_tracer/image/texture.hpp"
+#include "path_tracer/math/vec3.hpp"
 
 namespace core {
 	class material {
