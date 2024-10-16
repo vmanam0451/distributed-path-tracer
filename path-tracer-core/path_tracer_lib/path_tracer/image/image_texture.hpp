@@ -13,7 +13,8 @@ namespace image {
 		image_texture(const std::shared_ptr<image>& img);
 
 		static std::shared_ptr<image_texture> load(const std::filesystem::path& path, bool srgb);
-
+		static std::shared_ptr<image_texture> load_from_memory(const std::vector<uint8_t>& data, bool srgb);
+		
 		math::fvec4 sample(const math::fvec2& coord) const override;
 
 	private:

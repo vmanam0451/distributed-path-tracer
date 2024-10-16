@@ -43,7 +43,37 @@ namespace image {
 		}
 
 		if (data == nullptr)
-			throw std::runtime_error("Failed to open file: " + path.string());
+			throw std::runtime_error("Failed to load image to memory: " + path.string());
+
+		uint32_t byte_length = img->size.x * img->size.y
+			* img->channel_count * (img->hdr ? 4 : 1);
+		img->data = std::vector<uint8_t>(data, data + byte_length);
+
+		return img;
+	}
+
+	std::shared_ptr<image> image::load_from_memory(const std::vector<uint8_t>& buffer_data, bool srgb) {
+		auto img = std::shared_ptr<image>(new image());
+
+		img->hdr = stbi_is_hdr_from_memory(buffer_data.data(), buffer_data.size());
+		img->srgb = srgb;
+
+		uint8_t* data;
+		if (img->hdr) {
+			data = reinterpret_cast<uint8_t*>(stbi_load_from_memory(buffer_data.data(), buffer_data.size(),
+			                                             reinterpret_cast<int32_t*>(&img->size.x),
+			                                             reinterpret_cast<int32_t*>(&img->size.y),
+			                                             reinterpret_cast<int32_t*>(&img->channel_count), 0));
+		}
+		else {
+			data = stbi_load_from_memory(buffer_data.data(), buffer_data.size(),
+			                 reinterpret_cast<int32_t*>(&img->size.x),
+			                 reinterpret_cast<int32_t*>(&img->size.y),
+			                 reinterpret_cast<int32_t*>(&img->channel_count), 0);
+		}
+
+		if (data == nullptr)
+			throw std::runtime_error("Failed to load image from memory");
 
 		uint32_t byte_length = img->size.x * img->size.y
 			* img->channel_count * (img->hdr ? 4 : 1);
