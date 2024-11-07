@@ -103,6 +103,20 @@ def lambda_handler(event, context):
     topic_arn = sns_response['TopicArn']
     worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
     
+    worker_infos = {}
+    
+    for worker_id in split_scene['split_work'].keys():
+        worker_info = {
+            "work": split_scene['split_work']['worker_id'],
+            "scene_bucket": scene_bucket,
+            "scene_root": scene_key,
+            "worker_id": worker_id,
+            "sqs_queue_arn": worker_queues[worker_id],
+            "sns_topic_arn": topic_arn
+        }
+        
+        worker_infos[worker_id] = worker_info
+    
     output = {
         "scene": split_scene,
         "queues": worker_queues,
