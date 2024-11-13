@@ -11,7 +11,9 @@
     // Configure properties specific to VS Code.
     "vscode": {
       // Set *default* container specific settings.json values on container create.
-      "settings": {},
+      "settings": {
+        "C_Cpp.intelliSenseEngine": "disabled"
+      },
 
       // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
