@@ -26,3 +26,5 @@ Outputs:
   PathTraceFunction:
     Description: "Path Trace Lambda Function ARN"
     Value: !GetAtt PathTraceFunction.Arn
+    Export:
+      Name: PathTraceFunctionARN

@@ -1,5 +1,7 @@
 import json
+import traceback
 import boto3
+from botocore.config import Config
 from typing import List
 import yaml
 import os
@@ -72,58 +74,74 @@ def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: Lis
         print("Error creating queue: {}".format(e))
 
 def lambda_handler(event, context):
-    function_input = event['body']
+    try:
+        function_input = json.loads(event['body'])
+        print(function_input)
+        scene_bucket = function_input['scene_bucket']
+        scene_key = function_input['scene_key']
+        scene_name = function_input['scene_name']
     
-    scene_bucket = function_input['scene_bucket']
-    scene_key = function_input['scene_key']
-    scene_name = function_input['scene_name']
+        config_file = "prod.yml" 
     
-    config_file = "prod.yml" 
-    
-    with open(config_file, 'r') as stream:
-        config = yaml.safe_load(stream)
+        with open(config_file, 'r') as stream:
+            config = yaml.safe_load(stream)
 
-    preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key)    
-    split_scene = preprocessor.get_split_scene()
+        preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key)    
+        split_scene = preprocessor.get_split_scene()
     
-    session = boto3.session.Session()
+        session = boto3.session.Session()
     
-    sns_client = session.client(
-        service_name='sns',
-        region_name=config['sns']['region'],
-    )
+        sns_client = session.client(
+            service_name='sns',
+            region_name=config['sns']['region'],
+        )
     
     
-    sqs_client = boto3.client(
-        service_name='sqs',
-        region_name=config['sqs']['region'],
-    )
+        sqs_client = boto3.client(
+            service_name='sqs',
+            region_name=config['sqs']['region'],
+        )
         
-    sns_response = create_topic(sns_client, '{}-topic'.format(scene_name))
-    topic_arn = sns_response['TopicArn']
-    worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
+        sns_response = create_topic(sns_client, '{}-topic'.format(scene_name))
+        topic_arn = sns_response['TopicArn']
+        worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
     
-    worker_infos = {}
+        worker_infos = {}
     
-    for worker_id in split_scene['split_work'].keys():
-        worker_info = {
-            "work": split_scene['split_work']['worker_id'],
-            "scene_bucket": scene_bucket,
-            "scene_root": scene_key,
-            "worker_id": worker_id,
-            "sqs_queue_arn": worker_queues[worker_id],
-            "sns_topic_arn": topic_arn
+        for worker_id in split_scene['split_work'].keys():
+            worker_info = {
+                "work": split_scene['split_work'][worker_id],
+                "scene_bucket": scene_bucket,
+                "scene_root": scene_key,
+                "worker_id": worker_id,
+                "sqs_queue_arn": worker_queues[worker_id],
+                "sns_topic_arn": topic_arn
+            }
+        
+            worker_infos[worker_id] = worker_info
+        
+        path_trace_function_arn = os.environ['PathTraceFunctionARN']
+        for worker_id, worker_info in worker_infos.items():
+            lambda_client = boto3.client('lambda',
+                                endpoint_url='http://localhost:3000/path-trace')
+            lambda_client.invoke(
+                FunctionName='PathTraceFunction',
+                Payload=json.dumps(worker_info),
+            )
+        
+        output = {
+            "scene": split_scene,
+            "queues": worker_queues,
+            "topic_arn": topic_arn
         }
-        
-        worker_infos[worker_id] = worker_info
     
-    output = {
-        "scene": split_scene,
-        "queues": worker_queues,
-        "topic_arn": topic_arn
-    }
+        return {
+            "statusCode": 200,
+            "body": json.dumps(output),
+        }
     
-    return {
-        "statusCode": 200,
-        "body": json.dumps(output),
-    }
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": traceback.format_exc()}),  
+        }   
