@@ -110,7 +110,7 @@ def lambda_handler(event, context):
     
         for worker_id in split_scene['split_work'].keys():
             worker_info = {
-                "work": split_scene['split_work'][worker_id],
+                "scene_info": split_scene['split_work'][worker_id],
                 "scene_bucket": scene_bucket,
                 "scene_root": scene_key,
                 "worker_id": worker_id,
