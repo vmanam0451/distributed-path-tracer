@@ -2,6 +2,7 @@
 
 namespace cloud {
     void s3_download_object(const std::string& bucket, const std::string& key, std::variant<std::filesystem::path, std::vector<uint8_t>>& output) {
+        spdlog::info("Attempting to download object from s3://{}/{}", bucket, key);
         Aws::S3::S3Client s3_client;
 
         Aws::S3::Model::GetObjectRequest object_request;
@@ -23,6 +24,7 @@ namespace cloud {
 
                 object_result.seekg(0, std::ios::end);
                 data.resize(object_result.tellg());
+                object_result.seekg(0, std::ios::beg);
 
                 object_result.read(reinterpret_cast<char*>(data.data()), data.size());
             }
@@ -30,6 +32,7 @@ namespace cloud {
         }
         else {
             auto error = get_object_outcome.GetError();
+            spdlog::error("Error: Unable to download {} {}", bucket, key);
             spdlog::error("Error: {}: {}", error.GetExceptionName(), error.GetMessage());
         }
     }

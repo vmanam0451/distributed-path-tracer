@@ -33,7 +33,7 @@ namespace processors {
 	    renderer.resolution = math::uvec2(1920, 1080);
 	    renderer.environment_factor = math::fvec3::zero;
 	    renderer.transparent_background = true;
-	    renderer.load_gltf("scenes/cornell-box/cornell.gltf");
+	    
 	    renderer.render("renders/test.png");
     }
 
