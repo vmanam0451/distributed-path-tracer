@@ -3,7 +3,8 @@
 {
   "name": "Path Tracer Core",
   "build": {
-    "dockerfile": "Dockerfile"
+    "dockerfile": "Dockerfile",
+    "options": ["--platform=linux/amd64"]
   },
 
   // Configure tool-specific properties.
@@ -18,7 +19,6 @@
       // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
         "ms-vscode.cmake-tools",
-        "ms-vscode.cpptools-extension-pack",
         "llvm-vs-code-extensions.vscode-clangd"
       ]
     }

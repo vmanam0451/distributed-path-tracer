@@ -1,5 +1,4 @@
 #include "path_tracer/image/image.hpp"
-
 #include "path_tracer/math/math.hpp"
 
 using namespace math;
@@ -43,12 +42,47 @@ namespace image {
 		}
 
 		if (data == nullptr)
-			throw std::runtime_error("Failed to open file: " + path.string());
+			throw std::runtime_error("Failed to load image to memory: " + path.string());
 
 		uint32_t byte_length = img->size.x * img->size.y
 			* img->channel_count * (img->hdr ? 4 : 1);
-		img->data = std::vector<uint8_t>(data, data + byte_length);
+		img->data.resize(byte_length);
+		std::memcpy(img->data.data(), data, byte_length);
 
+		stbi_image_free(data);
+		return img;
+	}
+
+	std::shared_ptr<image> image::load_from_memory(const std::vector<uint8_t>& buffer_data, bool srgb) {
+		auto img = std::shared_ptr<image>(new image());
+
+		img->hdr = stbi_is_hdr_from_memory(buffer_data.data(), buffer_data.size());
+		img->srgb = srgb;
+
+		uint8_t* data;
+		if (img->hdr) {
+			data = reinterpret_cast<uint8_t*>(stbi_load_from_memory(buffer_data.data(), buffer_data.size(),
+			                                             reinterpret_cast<int32_t*>(&img->size.x),
+			                                             reinterpret_cast<int32_t*>(&img->size.y),
+			                                             reinterpret_cast<int32_t*>(&img->channel_count), 0));
+		}
+		else {
+			data = stbi_load_from_memory(buffer_data.data(), buffer_data.size(),
+			                 reinterpret_cast<int32_t*>(&img->size.x),
+			                 reinterpret_cast<int32_t*>(&img->size.y),
+			                 reinterpret_cast<int32_t*>(&img->channel_count), 0);
+		}
+
+		if (data == nullptr)
+			throw std::runtime_error("Failed to load image from memory");
+
+		uint32_t byte_length = img->size.x * img->size.y
+			* img->channel_count * (img->hdr ? 4 : 1);
+
+		img->data.resize(byte_length);
+		std::memcpy(img->data.data(), data, byte_length);
+
+		stbi_image_free(data);
 		return img;
 	}
 
@@ -73,6 +107,19 @@ namespace image {
 		}
 		else
 			throw std::invalid_argument("Unknown file extension.");
+	}
+
+	std::vector<uint8_t> image::save_to_memory_png() const {
+		int output_length;
+		unsigned char* output = stbi_write_png_to_mem(data.data(), size.x, size.y, channel_count, size.x * channel_count, &output_length);
+
+		if (output == nullptr)
+			throw std::runtime_error("Failed to save image to memory.");
+
+		std::vector<uint8_t> png_data(output, output + output_length);
+        free(output);
+
+        return png_data;
 	}
 
 	float image::read(const uvec2& pos, uint32_t channel) const {

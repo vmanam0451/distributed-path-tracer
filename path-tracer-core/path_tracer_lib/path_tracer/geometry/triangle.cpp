@@ -16,7 +16,7 @@ namespace geometry {
 	) : a(a), b(b), c(c) {
 	}
 
-	math::fvec3& triangle::operator[](size_t index) {
+	const math::fvec3& triangle::operator[](size_t index) {
 		switch (index) {
 		case 0:
 			return a;
