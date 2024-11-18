@@ -2,4 +2,4 @@ sns:
   region: us-east-1
 
 sqs:
-  region: 'us-east-1'
+  region: us-east-1

@@ -6,4 +6,4 @@ Dockerfile
 /out
 /.vs
 compile_commands.json
-/scenes/sponza
+/scenes

@@ -18,3 +18,4 @@
 #include <aws/lambda-runtime/runtime.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/model/GetObjectRequest.h>
+#include <aws/s3/model/PutObjectRequest.h>

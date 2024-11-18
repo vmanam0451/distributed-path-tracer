@@ -1,0 +1,26 @@
+{
+    "scene_info": {
+        "work": {
+            "Mesh_1.001": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+            ]
+        },
+        "total_size": 0.021287701000000003
+    },
+    "scene_bucket": "distributed-path-tracer",
+    "scene_root": "scenes/sponza-new",
+    "worker_id": 1,
+    "sqs_queue_arn": "",
+    "sns_topic_arn": ""
+}

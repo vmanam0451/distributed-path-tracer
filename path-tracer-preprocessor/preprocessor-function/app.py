@@ -76,35 +76,42 @@ def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: Lis
 def lambda_handler(event, context):
     try:
         function_input = json.loads(event['body'])
-        print(function_input)
         scene_bucket = function_input['scene_bucket']
         scene_key = function_input['scene_key']
         scene_name = function_input['scene_name']
+        num_workers = function_input['num_workers']
     
-        config_file = "prod.yml" 
+        ENVIRONMNET = os.environ.get('ENV', 'local')
+        if ENVIRONMNET == 'local':
+            config_file = "local.yml"
+        else:
+            config_file = "prod.yml" 
     
         with open(config_file, 'r') as stream:
             config = yaml.safe_load(stream)
 
-        preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key)    
+        preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key, num_workers=num_workers)    
         split_scene = preprocessor.get_split_scene()
     
         session = boto3.session.Session()
+        topic_arn = ""
+        worker_queues = {}
+
+        if ENVIRONMNET != 'local':
+            sns_client = session.client(
+                service_name='sns',
+                region_name=config['sns']['region'],
+            )
     
-        sns_client = session.client(
-            service_name='sns',
-            region_name=config['sns']['region'],
-        )
     
-    
-        sqs_client = boto3.client(
-            service_name='sqs',
-            region_name=config['sqs']['region'],
-        )
+            sqs_client = boto3.client(
+                service_name='sqs',
+                region_name=config['sqs']['region'],
+            )   
         
-        sns_response = create_topic(sns_client, '{}-topic'.format(scene_name))
-        topic_arn = sns_response['TopicArn']
-        worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
+            sns_response = create_topic(sns_client, '{}-topic'.format(scene_name))
+            topic_arn = sns_response['TopicArn']
+            worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
     
         worker_infos = {}
     
@@ -114,7 +121,7 @@ def lambda_handler(event, context):
                 "scene_bucket": scene_bucket,
                 "scene_root": scene_key,
                 "worker_id": worker_id,
-                "sqs_queue_arn": worker_queues[worker_id],
+                "sqs_queue_arn": worker_queues.get(worker_id, ""),
                 "sns_topic_arn": topic_arn
             }
         
@@ -122,17 +129,15 @@ def lambda_handler(event, context):
         
         path_trace_function_arn = os.environ['PathTraceFunctionARN']
         for worker_id, worker_info in worker_infos.items():
-            lambda_client = boto3.client('lambda',
-                                endpoint_url='http://localhost:3000/path-trace')
-            lambda_client.invoke(
-                FunctionName='PathTraceFunction',
-                Payload=json.dumps(worker_info),
-            )
-        
+            if ENVIRONMNET != 'local':
+                lambda_client = boto3.client('lambda',)
+                lambda_client.invoke(
+                     
+                    InvocationType='Event',
+                    Payload=json.dumps(worker_info),
+                )
         output = {
-            "scene": split_scene,
-            "queues": worker_queues,
-            "topic_arn": topic_arn
+            "worker_infos": worker_infos
         }
     
         return {

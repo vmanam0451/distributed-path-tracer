@@ -12,13 +12,13 @@ namespace geometry {
 			bool has_hit() const;
 		};
 
-		math::fvec3 a, b, c;
+		const math::fvec3& a, b, c;
 
 		triangle(const math::fvec3& a,
 		         const math::fvec3& b,
 		         const math::fvec3& c);
 
-		math::fvec3& operator[](size_t index);
+		const math::fvec3& operator[](size_t index);
 
 		const math::fvec3& operator[](size_t index) const;
 

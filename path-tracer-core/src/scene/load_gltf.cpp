@@ -51,6 +51,12 @@ namespace cloud {
 
 		if (!camera)
 			throw std::runtime_error("Scene is missing a camera.");
+
+		cgltf_free(data);
+		data = nullptr;
+
+		texture_cache.clear();
+		buffers_loaded.clear();
     }
 
     void distributed_scene::process_node(cgltf_node* cgltf_node, cgltf_camera* cgltf_camera, cgltf_light* cgltf_sun_light, scene::entity* parent, const std::filesystem::path& gltf_path) {
@@ -133,9 +139,7 @@ namespace cloud {
 		spdlog::info("Loaded: {}", entity->get_name());
 	}
 
-    static std::shared_ptr<image::texture> get_cached_texture(const std::string& scene_bucket, const std::string& image_key, bool srgb) {
-		static std::unordered_map<std::string, std::weak_ptr<image::texture>> texture_cache;
-
+    std::shared_ptr<image::texture> distributed_scene::get_cached_texture(const std::string& scene_bucket, const std::string& image_key, bool srgb) {
 		if (texture_cache.contains(image_key)) {
 			auto texture = texture_cache[image_key].lock();
 			if (texture)
@@ -150,8 +154,7 @@ namespace cloud {
 		return texture;
 	}
 
-	static bool is_buffer_loaded(const std::string& uri) {
-		static std::unordered_set<std::string> buffers_loaded;
+	bool distributed_scene::is_buffer_loaded(const std::string& uri) {
 		if (buffers_loaded.contains(uri)) return true;
 
 		buffers_loaded.insert(uri);
@@ -298,8 +301,7 @@ namespace cloud {
 		}
 
 		if (!cgltf_roughness_metallic_tex_path.empty()) {
-			auto roughness_metallic_tex = get_cached_texture(this->scene_s3_bucket, this->scene_s3_root + cgltf_roughness_metallic_tex_path,
-				false);
+			auto roughness_metallic_tex = get_cached_texture(this->scene_s3_bucket, this->scene_s3_root + cgltf_roughness_metallic_tex_path, false);
 			material->roughness_tex = roughness_metallic_tex;
 			material->metallic_tex = roughness_metallic_tex;
 		}

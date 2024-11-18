@@ -15,7 +15,7 @@ namespace cloud {
     public:
         distributed_scene() : data{nullptr} {}
 
-        ~distributed_scene();
+        ~distributed_scene() {};
 
         void load_scene(const std::string& scene_s3_bucket, const std::string& scene_s3_root, const std::map<mesh_name, primitives>& scene_work, const std::filesystem::path& gltf_path);
 
@@ -23,6 +23,10 @@ namespace cloud {
         void process_node(cgltf_node* cgltf_node, cgltf_camera* cgltf_camera, cgltf_light* cgltf_sun_light, scene::entity* parent, const std::filesystem::path& gltf_path);
         std::shared_ptr<core::mesh> get_mesh(cgltf_primitive* primitive, const std::filesystem::path& gltf_path);
 		std::shared_ptr<core::material>  get_material(cgltf_primitive* primitive);
+
+        std::shared_ptr<image::texture> get_cached_texture(const std::string& scene_bucket, const std::string& image_key, bool srgb);
+        bool is_buffer_loaded(const std::string& uri);
+        size_t get_scene_size();
 
     public:
         cgltf_data* data;
@@ -36,5 +40,7 @@ namespace cloud {
 		std::shared_ptr<scene::entity> sun_light;
 		std::shared_ptr<image::texture> environment;
 
+        std::unordered_map<std::string, std::weak_ptr<image::texture>> texture_cache;
+        std::unordered_set<std::string> buffers_loaded;
     };
 }
