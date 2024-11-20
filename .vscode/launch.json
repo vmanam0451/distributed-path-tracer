@@ -19,7 +19,8 @@
                         "body": {
                             "scene_bucket": "distributed-path-tracer", 
                             "scene_key": "scenes/sponza-new",
-                            "scene_name": "sponza-new"
+                            "scene_name": "sponza-new",
+                            "num_workers": 1,
                         }
                     }
                 }
