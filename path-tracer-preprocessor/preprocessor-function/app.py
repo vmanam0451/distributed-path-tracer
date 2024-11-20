@@ -1,4 +1,5 @@
 import json
+import string
 import traceback
 import boto3
 from botocore.config import Config
@@ -18,7 +19,7 @@ def create_topic(sns_client, topic_name: str):
 def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: List[int]):
     def create_and_subscribe_worker_queue(worker_id: str) -> str:
         try:
-            response = sqs_client.create_queue(QueueName='{}-worker-{}'.format(scene_name, worker_id))
+            response = sqs_client.create_queue(QueueName='{}-distributed-scene-worker-{}'.format(scene_name, worker_id))
             queue_url = response['QueueUrl']
             queue_attributes = sqs_client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=['QueueArn'])
             queue_arn = queue_attributes['Attributes']['QueueArn']
@@ -82,13 +83,7 @@ def lambda_handler(event, context):
         num_workers = function_input['num_workers']
     
         ENVIRONMNET = os.environ.get('ENV', 'local')
-        if ENVIRONMNET == 'local':
-            config_file = "local.yml"
-        else:
-            config_file = "prod.yml" 
-    
-        with open(config_file, 'r') as stream:
-            config = yaml.safe_load(stream)
+        AWS_REGION = os.environ.get('REGION', 'us-east-1')
 
         preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key, num_workers=num_workers)    
         split_scene = preprocessor.get_split_scene()
@@ -97,19 +92,18 @@ def lambda_handler(event, context):
         topic_arn = ""
         worker_queues = {}
 
-        if ENVIRONMNET != 'local':
+        if ENVIRONMNET != 'local': # TODO: Can create queues in local as well. Can locally invoke PathTraceFunction, and workers can communicate through SNS/SQS
             sns_client = session.client(
                 service_name='sns',
-                region_name=config['sns']['region'],
+                region_name=AWS_REGION,
             )
-    
     
             sqs_client = boto3.client(
                 service_name='sqs',
-                region_name=config['sqs']['region'],
+                region_name=AWS_REGION,
             )   
         
-            sns_response = create_topic(sns_client, '{}-topic'.format(scene_name))
+            sns_response = create_topic(sns_client, '{}-distributed-scene-topic'.format(scene_name))
             topic_arn = sns_response['TopicArn']
             worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
     
@@ -120,7 +114,7 @@ def lambda_handler(event, context):
                 "scene_info": split_scene['split_work'][worker_id],
                 "scene_bucket": scene_bucket,
                 "scene_root": scene_key,
-                "worker_id": worker_id,
+                "worker_id": string(worker_id),
                 "sqs_queue_arn": worker_queues.get(worker_id, ""),
                 "sns_topic_arn": topic_arn
             }
@@ -132,10 +126,11 @@ def lambda_handler(event, context):
             if ENVIRONMNET != 'local':
                 lambda_client = boto3.client('lambda',)
                 lambda_client.invoke(
-                     
+                    FunctionName=path_trace_function_arn,
                     InvocationType='Event',
                     Payload=json.dumps(worker_info),
                 )
+
         output = {
             "worker_infos": worker_infos
         }

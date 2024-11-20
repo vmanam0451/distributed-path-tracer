@@ -95,8 +95,7 @@ namespace image {
 			if (hdr)
 				throw std::invalid_argument("Can't save HDR image as PNG.");
 
-			stbi_write_png(path.string().c_str(), size.x, size.y,
-			               channel_count, data.data(), size.x * channel_count);
+			stbi_write_png(path.string().c_str(), size.x, size.y,channel_count, data.data(), size.x * channel_count);
 		}
 		else if (ext == ".hdr") {
 			if (hdr)
@@ -111,7 +110,7 @@ namespace image {
 
 	std::vector<uint8_t> image::save_to_memory_png() const {
 		int output_length;
-		unsigned char* output = stbi_write_png_to_mem(data.data(), size.x, size.y, channel_count, size.x * channel_count, &output_length);
+		unsigned char* output = stbi_write_png_to_mem(data.data(), size.x * channel_count, size.x, size.y, channel_count, &output_length);
 
 		if (output == nullptr)
 			throw std::runtime_error("Failed to save image to memory.");

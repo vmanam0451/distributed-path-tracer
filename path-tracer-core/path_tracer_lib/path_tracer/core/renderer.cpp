@@ -363,7 +363,7 @@ namespace core {
 	}
 
 
-	void renderer::render(const std::filesystem::path& path) const {
+	std::vector<uint8_t> renderer::render(const std::filesystem::path& path) const {
 		util::thread_pool pool(thread_count);
 
 		std::vector<std::shared_ptr<util::future>> todo;
@@ -457,6 +457,8 @@ namespace core {
 				img->save(path);
 			}
 		}
+
+		return img->save_to_memory_png();
 	}
 
 	fvec3 renderer::intersect_result::get_normal() const {

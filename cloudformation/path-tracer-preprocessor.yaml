@@ -7,6 +7,16 @@ Globals:
   Function:
     Timeout: 900
 
+Parameters:
+  ENV:
+    Type: String
+    Default: local
+    Description: Environment app is running in
+  REGION:
+    Type: String
+    Default: us-east-1
+    Description: AWS Region to deploy resources
+
 Resources:
   PathTracerPreprocessorFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -15,6 +25,24 @@ Resources:
       PackageType: Image
       Architectures:
         - x86_64
+      Policies:
+        - S3ReadPolicy:
+            BucketName: "distributed-path-tracer"
+        - S3WritePolicy:
+            BucketName: "distributed-path-tracer"
+        - LambdaInvokePolicy:
+            FunctionName: !GetAtt PathTraceFunction.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sns:CreateTopic
+                - sns:Subscribe
+              Resource: !Sub "arn:aws:sns:${REGION}:${AWS::AccountId}:*-distributed-scene-topic"
+            - Effect: Allow
+              Action:
+                - sqs:CreateQueue
+              Resource: !Sub "arn:aws:sqs:${REGION}:${AWS::AccountId}:*-distributed-scene-worker-*"
       Events:
         Preprocess:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -23,6 +51,8 @@ Resources:
             Method: get
       Environment:
         Variables:
+          ENV: !Ref ENV
+          REGION: !Ref REGION
           PathTraceFunctionARN: !GetAtt PathTraceFunction.Arn
     Metadata:
       Dockerfile: Dockerfile

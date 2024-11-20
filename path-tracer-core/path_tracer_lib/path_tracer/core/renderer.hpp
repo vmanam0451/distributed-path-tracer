@@ -33,7 +33,7 @@ namespace core {
 		uint8_t visualize_kd_tree_depth = 0; // 0 = disabled
 
 		void load_gltf(const std::filesystem::path& path);
-		void render(const std::filesystem::path& path) const;
+		std::vector<uint8_t> render(const std::filesystem::path& path) const;
 
 	private:
 		struct intersect_result {

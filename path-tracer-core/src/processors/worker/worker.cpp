@@ -34,7 +34,9 @@ namespace processors {
 	    renderer.environment_factor = math::fvec3::zero;
 	    renderer.transparent_background = true;
 	    
-	    renderer.render("renders/test.png");
+	    auto png_data = renderer.render("renders/test.png");
+        std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
+        cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
     }
 
     void worker::download_gltf_file() {

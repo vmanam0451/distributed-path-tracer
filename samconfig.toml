@@ -7,3 +7,10 @@ region = "us-east-1"
 capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
 image_repositories = []
 confirm_changeset = true
+parameter_overrides = "ENV=prod REGION=us-east-1"
+
+[default.local_start_api.parameters]
+parameter_overrides = "ENV=local REGION=us-east-1"
+
+[default.local_start_lambda.parameters]
+parameter_overrides = "ENV=local REGION=us-east-1"
