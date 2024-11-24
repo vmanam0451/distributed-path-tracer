@@ -20,7 +20,7 @@ class Preprocessor:
         
         s3 = boto3.resource('s3')
         scene_bucket = s3.Bucket(scene_bucket)
-        scene_bucket.download_file(scene_root + "/scene.gltf", '/tmp/scene.gltf') # Only tmp is writable in AWS Lambda
+        scene_bucket.download_file(scene_root + "scene.gltf", '/tmp/scene.gltf') # Only tmp is writable in AWS Lambda
         self.gltf = GLTF2().load('/tmp/scene.gltf')
     
     def get_split_scene(self) -> SplitScene:
@@ -107,7 +107,7 @@ class Preprocessor:
         image: Image = self.gltf.images[texture.source]
         
         s3 = boto3.client('s3')
-        response = s3.head_object(Bucket=self.scene_bucket, Key=self.scene_root + "/" + image.uri)
+        response = s3.head_object(Bucket=self.scene_bucket, Key=self.scene_root + image.uri)
         return response['ContentLength']
 
         

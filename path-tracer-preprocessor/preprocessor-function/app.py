@@ -82,17 +82,21 @@ def lambda_handler(event, context):
         scene_name = function_input['scene_name']
         num_workers = function_input['num_workers']
     
-        ENVIRONMNET = os.environ.get('ENV', 'local')
-        AWS_REGION = os.environ.get('REGION', 'us-east-1')
-
+        ENVIRONMENT = os.environ.get('ENV', 'local')
+        print("ENVIRONMENT: {}".format(ENVIRONMENT))
+        
         preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key, num_workers=num_workers)    
         split_scene = preprocessor.get_split_scene()
+        print("Completed splitting the scene scene")
     
         session = boto3.session.Session()
+        AWS_REGION = session.region_name
+
         topic_arn = ""
         worker_queues = {}
 
-        if ENVIRONMNET != 'local': # TODO: Can create queues in local as well. Can locally invoke PathTraceFunction, and workers can communicate through SNS/SQS
+        if ENVIRONMENT != 'local': # TODO: Can create queues in local as well. Can locally invoke PathTraceFunction, and workers can communicate through SNS/SQS
+            print("Creating topic and queues...")
             sns_client = session.client(
                 service_name='sns',
                 region_name=AWS_REGION,
@@ -106,6 +110,8 @@ def lambda_handler(event, context):
             sns_response = create_topic(sns_client, '{}-distributed-scene-topic'.format(scene_name))
             topic_arn = sns_response['TopicArn']
             worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
+
+            print("Created topic and queues")
     
         worker_infos = {}
     
@@ -114,22 +120,23 @@ def lambda_handler(event, context):
                 "scene_info": split_scene['split_work'][worker_id],
                 "scene_bucket": scene_bucket,
                 "scene_root": scene_key,
-                "worker_id": string(worker_id),
+                "worker_id": str(worker_id),
                 "sqs_queue_arn": worker_queues.get(worker_id, ""),
                 "sns_topic_arn": topic_arn
             }
         
             worker_infos[worker_id] = worker_info
         
-        path_trace_function_arn = os.environ['PathTraceFunctionARN']
         for worker_id, worker_info in worker_infos.items():
-            if ENVIRONMNET != 'local':
+            if ENVIRONMENT != 'local':
+                print("Invoking Path Trace Function for worker id: {}".format(worker_id))
                 lambda_client = boto3.client('lambda',)
                 lambda_client.invoke(
-                    FunctionName=path_trace_function_arn,
+                    FunctionName="distributed-path-tracer-worker", # specified in path-tracer.yaml
                     InvocationType='Event',
                     Payload=json.dumps(worker_info),
                 )
+                print("Invoked Path Trace Function for worker id: {}".format(worker_id))
 
         output = {
             "worker_infos": worker_infos

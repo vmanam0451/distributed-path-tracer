@@ -363,7 +363,7 @@ namespace core {
 	}
 
 
-	std::vector<uint8_t> renderer::render(const std::filesystem::path& path) const {
+	std::vector<uint8_t> renderer::render() const {
 		util::thread_pool pool(thread_count);
 
 		std::vector<std::shared_ptr<util::future>> todo;
@@ -453,8 +453,6 @@ namespace core {
 						img->write(pixel, 3, alpha);
 					}
 				}
-
-				img->save(path);
 			}
 		}
 

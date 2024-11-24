@@ -1,16 +1,17 @@
 version = 0.1
 [default.deploy.parameters]
 stack_name = "distributed-path-tracer-stack"
-resolve_s3 = true
+s3_bucket = "distributed-path-trace-function-artifacts"
 s3_prefix = "distributed-path-tracer-stack"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
-image_repositories = []
+image_repositories = ["PathTraceFunction=637423391870.dkr.ecr.us-east-1.amazonaws.com/distributed-path-tracer-repo",
+                     "PathTracerPreprocessorFunction=637423391870.dkr.ecr.us-east-1.amazonaws.com/distributed-path-tracer-repo"]
 confirm_changeset = true
-parameter_overrides = "ENV=prod REGION=us-east-1"
+parameter_overrides = "ENV=prod"
 
 [default.local_start_api.parameters]
-parameter_overrides = "ENV=local REGION=us-east-1"
+parameter_overrides = "ENV=local"
 
 [default.local_start_lambda.parameters]
-parameter_overrides = "ENV=local REGION=us-east-1"
+parameter_overrides = "ENV=local"

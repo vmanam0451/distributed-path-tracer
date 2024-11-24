@@ -2,12 +2,23 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: SAM Template for distributed path tracing resources
 
+Parameters:
+  ENV:
+    Type: String
+    Default: local
+    Description: Environment app is running in
+
 Resources:
     PathTracer:
       Type: AWS::Serverless::Application
       Properties:
         Location: ./cloudformation/path-tracer.yaml
+        Parameters:
+          ENV: !Ref ENV
     PathTracerPreprocessor:
       Type: AWS::Serverless::Application
       Properties:
         Location: ./cloudformation/path-tracer-preprocessor.yaml
+        Parameters:
+          ENV: !Ref ENV
+      DependsOn: PathTracer

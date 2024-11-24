@@ -7,39 +7,38 @@ Globals:
     Timeout: 900 # 15 minutes
     MemorySize: 2048
 
+Parameters:
+  ENV:
+    Type: String
+
 Resources:
   PathTraceFunction:
     Type: AWS::Serverless::Function
-    Architectures:
-        - x86_64
     Properties:
+      Architectures:
+        - x86_64
+      FunctionName: "distributed-path-tracer-worker"
       PackageType: Image
-      MemorySize: 2048
       Policies:
         - S3ReadPolicy:
             BucketName: "distributed-path-tracer"
         - S3WritePolicy:
             BucketName: "distributed-path-tracer"
-        - LambdaInvokePolicy:
-            FunctionName: !GetAtt PathTraceFunction.Arn
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action:
                 - sns:Publish
-              Resource: !Sub "arn:aws:sns:${REGION}:${AWS::AccountId}:*-distributed-scene-topic"
+              Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:*-distributed-scene-topic"
             - Effect: Allow
               Action:
                 - sqs:ReceiveMessage
                 - sqs:DeleteMessage
                 - sqs:GetQueueAttributes
-              Resource: !Sub "arn:aws:sqs:${REGION}:${AWS::AccountId}:*-distributed-scene-worker-*"
-      Events:
-        PathTrace:
-          Type: Api 
-          Properties:
-            Path: /path-trace
-            Method: get
+              Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*-distributed-scene-worker-*"
+      Environment:
+        Variables:
+          ENV: !Ref ENV
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ../path-tracer-core

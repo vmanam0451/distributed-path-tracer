@@ -28,13 +28,13 @@ namespace processors {
         renderer.sun_light = std::move(m_scene.sun_light);
         renderer.environment = std::move(m_scene.environment);
 
-	    renderer.sample_count = 25;
+	    renderer.sample_count = 2;
 	    renderer.bounce_count = 4;
 	    renderer.resolution = math::uvec2(1920, 1080);
 	    renderer.environment_factor = math::fvec3::zero;
 	    renderer.transparent_background = true;
 	    
-	    auto png_data = renderer.render("renders/test.png");
+	    auto png_data = renderer.render();
         std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
         cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
     }
