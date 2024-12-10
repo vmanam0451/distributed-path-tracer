@@ -1,9 +1,11 @@
 #pragma once
 
+#include "pch.hpp"
 #include "processors/application.hpp"
 #include "models/work_info.hpp"
 #include "cloud/s3.hpp"
 #include "scene/scene.hpp"
+#include <concurrentqueue/concurrentqueue.h>
 
 namespace processors {
     class worker : public application {
@@ -18,6 +20,5 @@ namespace processors {
         models::worker_info m_worker_info;
         std::filesystem::path m_gltf_file_path;
         cloud::distributed_scene m_scene;
-
     };
 }

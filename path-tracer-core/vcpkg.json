@@ -10,7 +10,8 @@
         "sqs"
       ]
     },
+    "nlohmann-json",
     "spdlog",
-    "nlohmann-json"
+    "concurrentqueue"
   ]
 }
