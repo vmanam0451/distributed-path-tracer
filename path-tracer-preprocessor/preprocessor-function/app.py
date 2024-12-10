@@ -24,7 +24,7 @@ def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: Lis
             queue_attributes = sqs_client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=['QueueArn'])
             queue_arn = queue_attributes['Attributes']['QueueArn']
             
-            filter_policy = {'worker_id': [worker_id]} if worker_id == 'master' else {"worker_id" : ["ALL"]}
+            filter_policy = {'worker_id': ["MASTER"]} if worker_id == 'master' else {"worker_id" : ["ALL"]}
             sns_client.subscribe(
                 TopicArn=topic_arn,
                 Protocol='sqs',
