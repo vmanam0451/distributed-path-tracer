@@ -10,20 +10,27 @@
 #include "path_tracer/core/renderer.hpp"
 #include "pch.hpp"
 #include "models/work_info.hpp"
+#include "models/vectors.hpp"
 
 namespace cloud {
     class distributed_scene {
     private:
         struct intersect_result {
 			bool hit;
-			std::shared_ptr<core::material> material;
+			float distance;
 
-			math::fvec3 position;
+            math::fvec3 position;
 			math::fvec2 tex_coord;
 			math::fvec3 normal;
-			math::fvec3 tangent;
 
-			math::fvec3 get_normal() const;
+            math::fvec3 albedo;
+            float opacity;
+            float roughness;
+            float metallic;
+            math::fvec3 emissive;
+            float ior;
+
+            NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(intersect_result, hit, distance, albedo, opacity, roughness, metallic, emissive, ior, position, tex_coord, normal)
 		};
 
     public:

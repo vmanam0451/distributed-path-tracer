@@ -1,23 +1,10 @@
 #pragma once 
 
 #include "pch.hpp"
+#include "vectors.hpp"
 #include <path_tracer/geometry/ray.hpp>
 
-namespace math {
-    inline void to_json(nlohmann::json& j, const math::fvec3& v) {
-        j = nlohmann::json{
-            {"x", v.x},
-            {"y", v.y},
-            {"z", v.z}
-        };
-    }
 
-    inline void from_json(const nlohmann::json& j, math::fvec3& v) {
-        v.x = j.at("x").get<float>();
-        v.y = j.at("y").get<float>();
-        v.z = j.at("z").get<float>();
-    }
-}
 namespace geometry {
     inline void to_json(nlohmann::json& j, const geometry::ray& ray) {
         j = nlohmann::json{

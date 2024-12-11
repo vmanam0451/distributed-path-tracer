@@ -5,13 +5,6 @@ using namespace math;
 using namespace scene;
 
 namespace cloud {
-    math::fvec3 distributed_scene::intersect_result::get_normal() const {
-        vec3 binormal = cross(normal, tangent);
-		fmat3 tbn(tangent, binormal, normal);
-
-		return tbn * material->get_normal(tex_coord);
-    }
-
     distributed_scene::intersect_result distributed_scene::intersect(const geometry::ray &ray) const {
         std::stack<entity*> stack;
 		for (const auto& [_, entity] : m_entities) {
@@ -74,13 +67,22 @@ namespace cloud {
 			v2.tangent * nearest_hit.barycentric.y +
 			v3.tangent * nearest_hit.barycentric.z));
 
+		fvec3 albedo = material->get_albedo(tex_coord);
+		float opacity = material->get_opacity(tex_coord);
+		float roughness = material->get_roughness(tex_coord);
+		float metallic = material->get_metallic(tex_coord);
+		fvec3 emissive = material->get_emissive(tex_coord);
+		float ior = material->ior;
+
+		vec3 binormal = cross(normal, tangent);
+		fmat3 tbn(tangent, binormal, normal);
+
+		normal = tbn * material->get_normal(tex_coord);
+
 		return {
-			true,
-			material,
-			position,
-			tex_coord,
-			normal,
-			tangent
+			true, nearest_hit.distance, 
+			position, tex_coord, normal,
+			albedo, opacity, roughness, metallic, emissive, ior
 		};
     }
 }

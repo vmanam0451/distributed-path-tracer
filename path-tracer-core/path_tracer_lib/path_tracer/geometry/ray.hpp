@@ -8,6 +8,7 @@ namespace geometry {
 	public:
 		math::fvec3 origin;
 
+		ray() = default;
 		ray(const math::fvec3& origin, const math::fvec3& dir);
 
 		ray transform(const scene::transform& transform) const;
