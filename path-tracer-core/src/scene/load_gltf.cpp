@@ -7,8 +7,8 @@
 
 namespace cloud {
     void distributed_scene::load_scene(const std::string& scene_s3_bucket, const std::string& scene_s3_root, const std::map<mesh_name, primitives>& scene_work, const std::filesystem::path& gltf_path) {
-		this->scene_s3_bucket = scene_s3_bucket;
-		this->scene_s3_root = scene_s3_root;
+		this->m_scene_s3_bucket = scene_s3_bucket;
+		this->m_scene_s3_root = scene_s3_root;
 		this->scene_work = scene_work;
 
 		uint32_t camera_index = 0;
@@ -16,7 +16,7 @@ namespace cloud {
 		uint32_t no_sun_light = static_cast<uint32_t>(-1);
 
         cgltf_options options = {};
-		cgltf_result result = cgltf_parse_file(&options, gltf_path.string().c_str(), &data);
+		cgltf_result result = cgltf_parse_file(&options, gltf_path.string().c_str(), &m_data);
 		if (result == cgltf_result_success) {
             spdlog::info("Loaded glTF file: {}", gltf_path.string());
 		}
@@ -25,23 +25,23 @@ namespace cloud {
             throw std::runtime_error("Failed to load glTF file");
 		}
 
-        cgltf_scene main_scene = data->scenes[0];
+        cgltf_scene main_scene = m_data->scenes[0];
 
-		if (data->cameras_count < camera_index + 1)
+		if (m_data->cameras_count < camera_index + 1)
 			throw std::runtime_error("Scene does not contain camera #" + util::to_string(camera_index) + ".");
 
-		cgltf_camera* cgltf_camera = &data->cameras[camera_index];
+		cgltf_camera* cgltf_camera = &m_data->cameras[camera_index];
 
 		cgltf_light* cgltf_sun_light = nullptr;
 		if (sun_light_index != no_sun_light) {
-			if (data->lights_count < sun_light_index + 1) {
+			if (m_data->lights_count < sun_light_index + 1) {
 				spdlog::error("Scene does not contain sun light #{} No sun light will be used.", sun_light_index);
 			}
-			else if (data->lights[sun_light_index].type != cgltf_light_type_directional) {
+			else if (m_data->lights[sun_light_index].type != cgltf_light_type_directional) {
 				spdlog::error("Light #{} is not a sun light. No sun light will be used.", sun_light_index);
 			}
 			else {
-				cgltf_sun_light = &data->lights[sun_light_index];
+				cgltf_sun_light = &m_data->lights[sun_light_index];
 			}
 		}
 
@@ -49,14 +49,14 @@ namespace cloud {
 			process_node(main_scene.nodes[i], cgltf_camera, cgltf_sun_light, nullptr, gltf_path);
 		}
 
-		if (!camera)
+		if (!m_camera)
 			throw std::runtime_error("Scene is missing a camera.");
 
-		cgltf_free(data);
-		data = nullptr;
+		cgltf_free(m_data);
+		m_data = nullptr;
 
-		texture_cache.clear();
-		buffers_loaded.clear();
+		m_texture_cache.clear();
+		m_buffers_loaded.clear();
     }
 
     void distributed_scene::process_node(cgltf_node* cgltf_node, cgltf_camera* cgltf_camera, cgltf_light* cgltf_sun_light, scene::entity* parent, const std::filesystem::path& gltf_path) {
@@ -111,7 +111,7 @@ namespace cloud {
 		if (entity->get_name() == std::string(cgltf_camera->name)) {
 			auto camera = entity->add_component<scene::camera>();
 
-			this->camera = entity;
+			this->m_camera = entity;
 
 			float vfov = cgltf_camera->data.perspective.yfov;
 			camera->set_fov(vfov);
@@ -120,7 +120,7 @@ namespace cloud {
 		if (cgltf_sun_light && entity->get_name() == std::string(cgltf_sun_light->name)) {
 			auto sun_light = entity->add_component<scene::sun_light>();
 
-			this->sun_light = entity;
+			this->m_sun_light = entity;
 
 			sun_light->energy = math::fvec3(cgltf_sun_light->color[0], cgltf_sun_light->color[1], cgltf_sun_light->color[2]) * cgltf_sun_light->intensity;
 		}
@@ -134,14 +134,14 @@ namespace cloud {
 		if (parent)
 			entity->set_parent(parent->shared_from_this());
 		else
-			entities[entity->get_name()] = entity;
+			m_entities[entity->get_name()] = entity;
 
 		spdlog::info("Loaded: {}", entity->get_name());
 	}
 
     std::shared_ptr<image::texture> distributed_scene::get_cached_texture(const std::string& scene_bucket, const std::string& image_key, bool srgb) {
-		if (texture_cache.contains(image_key)) {
-			auto texture = texture_cache[image_key].lock();
+		if (m_texture_cache.contains(image_key)) {
+			auto texture = m_texture_cache[image_key].lock();
 			if (texture)
 				return texture;
 		}
@@ -150,14 +150,14 @@ namespace cloud {
         cloud::s3_download_object(scene_bucket, image_key, output);
 
 		auto texture = image::image_texture::load_from_memory(std::get<1>(output), srgb);
-		texture_cache[image_key] = texture;
+		m_texture_cache[image_key] = texture;
 		return texture;
 	}
 
 	bool distributed_scene::is_buffer_loaded(const std::string& uri) {
-		if (buffers_loaded.contains(uri)) return true;
+		if (m_buffers_loaded.contains(uri)) return true;
 
-		buffers_loaded.insert(uri);
+		m_buffers_loaded.insert(uri);
 		return false;
 	}
 
@@ -179,7 +179,7 @@ namespace cloud {
 			if (!buffer_loaded) {
                 std::filesystem::path path = std::filesystem::path("/tmp/" + buffer_uri);
                 std::variant<std::filesystem::path, std::vector<uint8_t>> output {path};
-                cloud::s3_download_object(this->scene_s3_bucket, this->scene_s3_root + buffer_uri, output);
+                cloud::s3_download_object(this->m_scene_s3_bucket, this->m_scene_s3_root + buffer_uri, output);
 
 				cgltf_options options = {};
 				cgltf_load_buffer_file(&options, buffer->size, buffer_uri.c_str(), gltf_path.string().c_str(), &buffer->data);
@@ -284,30 +284,30 @@ namespace cloud {
 		material->emissive_fac = math::fvec3(cgltf_emissive[0], cgltf_emissive[1], cgltf_emissive[2]);
 
 		if (!cgltf_normal_tex_path.empty()) {
-			auto normal_tex = get_cached_texture(this->scene_s3_bucket, this->scene_s3_root + cgltf_normal_tex_path, false);
+			auto normal_tex = get_cached_texture(this->m_scene_s3_bucket, this->m_scene_s3_root + cgltf_normal_tex_path, false);
 			material->normal_tex = normal_tex;
 		}
 
 		if (!cgltf_albedo_opacity_tex_path.empty()) {
-			auto albedo_opacity_tex = get_cached_texture(this->scene_s3_bucket, this->scene_s3_root + cgltf_albedo_opacity_tex_path, true);
+			auto albedo_opacity_tex = get_cached_texture(this->m_scene_s3_bucket, this->m_scene_s3_root + cgltf_albedo_opacity_tex_path, true);
 			material->albedo_tex = albedo_opacity_tex;
 			if (cgltf_alpha_mode != cgltf_alpha_mode_opaque)
 				material->opacity_tex = albedo_opacity_tex;
 		}
 
 		if (!cgltf_occlusion_tex_path.empty()) {
-			auto occlusion_tex = get_cached_texture(this->scene_s3_bucket, this->scene_s3_root + cgltf_occlusion_tex_path, false);
+			auto occlusion_tex = get_cached_texture(this->m_scene_s3_bucket, this->m_scene_s3_root + cgltf_occlusion_tex_path, false);
 			material->occlusion_tex = occlusion_tex;
 		}
 
 		if (!cgltf_roughness_metallic_tex_path.empty()) {
-			auto roughness_metallic_tex = get_cached_texture(this->scene_s3_bucket, this->scene_s3_root + cgltf_roughness_metallic_tex_path, false);
+			auto roughness_metallic_tex = get_cached_texture(this->m_scene_s3_bucket, this->m_scene_s3_root + cgltf_roughness_metallic_tex_path, false);
 			material->roughness_tex = roughness_metallic_tex;
 			material->metallic_tex = roughness_metallic_tex;
 		}
 
 		if (!cgltf_emissive_tex_path.empty()) {
-			auto emissive_tex = get_cached_texture(this->scene_s3_bucket, this->scene_s3_root + cgltf_emissive_tex_path, true);
+			auto emissive_tex = get_cached_texture(this->m_scene_s3_bucket, this->m_scene_s3_root + cgltf_emissive_tex_path, true);
 			material->emissive_tex = emissive_tex;
 		}
 

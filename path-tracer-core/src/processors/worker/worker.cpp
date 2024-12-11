@@ -23,10 +23,10 @@ namespace processors {
 
         core::renderer renderer;
 
-        renderer.entities = std::move(m_scene.entities);
-        renderer.camera = std::move(m_scene.camera);
-        renderer.sun_light = std::move(m_scene.sun_light);
-        renderer.environment = std::move(m_scene.environment);
+        renderer.entities = std::move(m_scene.m_entities);
+        renderer.camera = std::move(m_scene.m_camera);
+        renderer.sun_light = std::move(m_scene.m_sun_light);
+        renderer.environment = std::move(m_scene.m_environment);
 
 	    renderer.sample_count = 2;
 	    renderer.bounce_count = 4;
