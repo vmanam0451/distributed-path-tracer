@@ -7,13 +7,28 @@
 #include <path_tracer/scene/sun_light.hpp>
 #include <path_tracer/core/mesh.hpp>
 #include <path_tracer/core/material.hpp>
+#include "path_tracer/core/renderer.hpp"
 #include "pch.hpp"
 #include "models/work_info.hpp"
 
 namespace cloud {
     class distributed_scene {
+    private:
+        struct intersect_result {
+			bool hit;
+			std::shared_ptr<core::material> material;
+
+			math::fvec3 position;
+			math::fvec2 tex_coord;
+			math::fvec3 normal;
+			math::fvec3 tangent;
+
+			math::fvec3 get_normal() const;
+		};
+
     public:
         void load_scene(const std::string& scene_s3_bucket, const std::string& scene_s3_root, const std::map<mesh_name, primitives>& scene_work, const std::filesystem::path& gltf_path);
+        distributed_scene::intersect_result intersect(const geometry::ray& ray) const;
 
     private:
         void process_node(cgltf_node* cgltf_node, cgltf_camera* cgltf_camera, cgltf_light* cgltf_sun_light, scene::entity* parent, const std::filesystem::path& gltf_path);
@@ -24,7 +39,7 @@ namespace cloud {
         bool is_buffer_loaded(const std::string& uri);
         size_t get_scene_size();
 
-    public:
+    public: // TODO: Change to private
         cgltf_data* m_data{nullptr};
 
         std::string m_scene_s3_bucket;
