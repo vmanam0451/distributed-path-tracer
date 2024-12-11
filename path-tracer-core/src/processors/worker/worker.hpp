@@ -17,6 +17,7 @@ namespace processors {
     private:
         void download_gltf_file();
         void process_intersections();
+        void process_intersection_results();
 
     private:
         models::worker_info m_worker_info;
@@ -24,7 +25,8 @@ namespace processors {
         cloud::distributed_scene m_scene;
 
         std::atomic<bool> m_should_terminate;
-        
-        moodycamel::ConcurrentQueue<cloud::ray> intersection_queue;
+
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_intersection_queue;
+        moodycamel::ConcurrentQueue<models::intersect_result> m_intersection_result_queue;
     };
 }

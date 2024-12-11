@@ -9,33 +9,15 @@
 #include <path_tracer/core/material.hpp>
 #include "path_tracer/core/renderer.hpp"
 #include "pch.hpp"
+#include "models/cloud_ray.hpp"
 #include "models/work_info.hpp"
-#include "models/vectors.hpp"
+#include "models/intersect_result.hpp"
 
 namespace cloud {
     class distributed_scene {
-    private:
-        struct intersect_result {
-			bool hit;
-			float distance;
-
-            math::fvec3 position;
-			math::fvec2 tex_coord;
-			math::fvec3 normal;
-
-            math::fvec3 albedo;
-            float opacity;
-            float roughness;
-            float metallic;
-            math::fvec3 emissive;
-            float ior;
-
-            NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(intersect_result, hit, distance, albedo, opacity, roughness, metallic, emissive, ior, position, tex_coord, normal)
-		};
-
     public:
         void load_scene(const std::string& scene_s3_bucket, const std::string& scene_s3_root, const std::map<mesh_name, primitives>& scene_work, const std::filesystem::path& gltf_path);
-        distributed_scene::intersect_result intersect(const geometry::ray& ray) const;
+        models::intersect_result intersect(const models::cloud_ray& cloud_ray) const;
 
     private:
         void process_node(cgltf_node* cgltf_node, cgltf_camera* cgltf_camera, cgltf_light* cgltf_sun_light, scene::entity* parent, const std::filesystem::path& gltf_path);

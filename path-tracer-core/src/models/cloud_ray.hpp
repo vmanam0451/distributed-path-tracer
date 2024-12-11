@@ -20,10 +20,10 @@ namespace geometry {
     }
 }
 
-namespace cloud {
-    struct ray {
+namespace models {
+    struct cloud_ray {
         geometry::ray geometry_ray;
     };
 
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(ray, geometry_ray)
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(cloud_ray, geometry_ray)
 }
