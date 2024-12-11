@@ -11,6 +11,7 @@ namespace models {
     struct work_info {
         std::map<mesh_name, primitives> work;
         float total_size;
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(work_info, work, total_size)
     };
 
     struct worker_info {
@@ -20,9 +21,6 @@ namespace models {
         std::string worker_id;
         std::string sqs_queue_arn;
         std::string sns_topic_arn;
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(worker_info, scene_info, scene_bucket, scene_root, worker_id, sqs_queue_arn, sns_topic_arn)
     };
-
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(work_info, work, total_size)
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(worker_info, scene_info, scene_bucket, scene_root, worker_id, sqs_queue_arn, sns_topic_arn)
-
 }
