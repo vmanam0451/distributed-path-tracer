@@ -1,0 +1,18 @@
+  302  sam build
+  303  rm -rf .aws-sam
+  304  sam build
+  305  sam build --debug --cached
+  306  sam local invoke PathTraceFunction --event path-tracer-core/events/event.json --profile path-tracer-preprocessor-role --debug
+  307  sam build --debug --cached
+  308  sam local invoke PathTraceFunction --event path-tracer-core/events/event.json --profile path-tracer-preprocessor-role --debug
+  309  sam build --debug --cached
+  310  sam build --debug --cached
+  311  sam build --debug --cached
+  312  sam build --debug --cached
+  313  rm -rm .aws-sam
+  314  rm -rf .aws-sam
+  315  sam build --debug --cached
+  316  clear
+  317  history
+
+  sam deploy --profile path_trace_user --no-confirm-changeset --on-failure DELETE
