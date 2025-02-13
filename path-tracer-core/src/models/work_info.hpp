@@ -21,6 +21,7 @@ namespace models {
         std::string worker_id;
         std::string sqs_queue_arn;
         std::string sns_topic_arn;
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(worker_info, scene_info, scene_bucket, scene_root, worker_id, sqs_queue_arn, sns_topic_arn)
+        int num_workers;
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(worker_info, scene_info, scene_bucket, scene_root, worker_id, sqs_queue_arn, sns_topic_arn, num_workers)
     };
 }

@@ -122,7 +122,8 @@ def lambda_handler(event, context):
                 "scene_root": scene_key,
                 "worker_id": str(worker_id),
                 "sqs_queue_arn": worker_queues.get(worker_id, ""),
-                "sns_topic_arn": topic_arn
+                "sns_topic_arn": topic_arn,
+                "num_workers": len(split_scene['split_work'].keys())
             }
         
             worker_infos[worker_id] = worker_info

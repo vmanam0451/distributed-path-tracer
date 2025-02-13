@@ -1,8 +1,9 @@
 #pragma once 
 
+#include <path_tracer/geometry/ray.hpp>
 #include "pch.hpp"
 #include "vectors.hpp"
-#include <path_tracer/geometry/ray.hpp>
+#include "intersect_result.hpp"
 
 
 namespace geometry {
@@ -21,9 +22,28 @@ namespace geometry {
 }
 
 namespace models {
+    enum ray_stage {
+        INITIAL,
+        DIRECT_LIGHTING,
+        DIRECT_LIGHTING_RESULTS,
+        INDIRECT_LIGHTING,
+        COMPLETED
+    };
+    
     struct cloud_ray {
+        std::string uuid;
         geometry::ray geometry_ray;
+
+        geometry::ray intersect_ray;
+        models::intersect_result object_intersect_result;
+        models::intersect_result direct_light_intersect_result;
+
+        math::fvec3 color;
+        math::fvec3 scale;
+        
+        uint8_t bounce;
+        ray_stage stage;
     };
 
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(cloud_ray, geometry_ray)
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(cloud_ray, uuid, geometry_ray, intersect_ray, object_intersect_result, direct_light_intersect_result, bounce, stage)
 }

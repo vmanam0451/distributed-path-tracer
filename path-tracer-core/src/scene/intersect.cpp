@@ -5,9 +5,7 @@ using namespace math;
 using namespace scene;
 
 namespace cloud {
-    models::intersect_result distributed_scene::intersect(const models::cloud_ray& cloud_ray) const {
-		geometry::ray ray = cloud_ray.geometry_ray;
-		
+    models::intersect_result distributed_scene::intersect(const geometry::ray& ray) const {
         std::stack<entity*> stack;
 		for (const auto& [_, entity] : m_entities) {
 			stack.push(entity.get());

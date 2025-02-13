@@ -44,4 +44,28 @@ namespace processors {
         std::variant<std::filesystem::path, std::vector<uint8_t>> output { m_gltf_file_path };
         cloud::s3_download_object(m_worker_info.scene_bucket, s3_gltf_file, output);
     }
+
+    void worker::map_ray_stage_to_queue(const models::cloud_ray& ray) {
+        const models::ray_stage& stage = ray.stage;
+
+        switch (stage) {
+            case models::ray_stage::INITIAL:
+                m_intersection_queue.enqueue(ray);
+                break;
+            case models::ray_stage::DIRECT_LIGHTING:
+                m_direct_lighting_queue.enqueue(ray);
+                break;
+            case models::ray_stage::DIRECT_LIGHTING_RESULTS:
+                m_direct_lighting_result_queue.enqueue(ray);
+                break;
+            case models::ray_stage::INDIRECT_LIGHTING:
+                m_indirect_lighting_queue.enqueue(ray);
+                break;
+            case models::ray_stage::COMPLETED:
+                break;
+            default:
+                break;
+        }
+    }
+
 }

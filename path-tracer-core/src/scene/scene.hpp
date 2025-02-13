@@ -17,7 +17,7 @@ namespace cloud {
     class distributed_scene {
     public:
         void load_scene(const std::string& scene_s3_bucket, const std::string& scene_s3_root, const std::map<mesh_name, primitives>& scene_work, const std::filesystem::path& gltf_path);
-        models::intersect_result intersect(const models::cloud_ray& cloud_ray) const;
+        models::intersect_result intersect(const geometry::ray& ray) const;
 
     private:
         void process_node(cgltf_node* cgltf_node, cgltf_camera* cgltf_camera, cgltf_light* cgltf_sun_light, scene::entity* parent, const std::filesystem::path& gltf_path);

@@ -18,7 +18,7 @@ namespace models {
         float metallic;
         math::fvec3 emissive;
         float ior;
-
-        NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(intersect_result, hit, distance, albedo, opacity, roughness, metallic, emissive, ior, position, tex_coord, normal)
 	};
+    
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(intersect_result, hit, distance, albedo, opacity, roughness, metallic, emissive, ior, position, tex_coord, normal)
 }
