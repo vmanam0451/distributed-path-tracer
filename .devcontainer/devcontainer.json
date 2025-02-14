@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/vscode-remote/devcontainer.json or this file's README at:
 // https://github.com/microsoft/vscode-dev-containers/tree/v0.195.0/containers/cpp
 {
-  "name": "Path Tracer Core",
+  "name": "Distributed Path Tracer",
   "build": {
     "dockerfile": "Dockerfile",
     "options": ["--platform=linux/amd64"]
@@ -19,15 +19,16 @@
       // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
         "ms-vscode.cmake-tools",
-        "llvm-vs-code-extensions.vscode-clangd"
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-python.python"
       ]
     }
-  }
+  },
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   // "forwardPorts": [],
 
   // Use 'postCreateCommand' to run commands after the container is created.
   // "postCreateCommand": "gcc -v",
-
+  "postCreateCommand": "cd ./path-tracer-preprocessor/preprocessor-function && pipenv install -r ./requirements.txt"
   // Comment out this line to run as root instead.
 }

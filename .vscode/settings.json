@@ -1,0 +1,8 @@
+{
+    "cmake.useCMakePresets": "always",
+    "cmake.sourceDirectory": "${workspaceFolder}/path-tracer-core",
+    "cmake.configureOnOpen": true,
+    "cmake.buildDirectory": "${workspaceFolder}/path-tracer-core/build",
+
+    "python.defaultInterpreterPath": "${workspaceFolder}/path-tracer-preprocessor/preprocessor-function/.venv/bin/python",
+}
