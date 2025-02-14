@@ -23,5 +23,5 @@ RUN dnf install -y valgrind
 
 # Setup Python
 RUN dnf install -y python3.9-pip
-RUN pip install pipenv
+RUN pip install --ignore-installed pipenv
 ENV PIPENV_VENV_IN_PROJECT=1
