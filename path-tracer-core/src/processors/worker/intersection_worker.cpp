@@ -42,7 +42,7 @@ namespace processors {
             m_intersection_results[ray.uuid].push_back(ray);
 
             if(m_intersection_results[ray.uuid].size() == m_worker_info.num_workers) {
-                float distance;
+                float distance = std::numeric_limits<float>::max();
                 bool hit = false;
                 std::vector<models::cloud_ray> results = m_intersection_results[ray.uuid];
                 models::cloud_ray closest_ray = results[0];
