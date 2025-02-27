@@ -1,4 +1,5 @@
 #include "scene.hpp"
+#include <path_tracer/core/utils.hpp>
 
 using namespace core;
 using namespace math;
@@ -71,7 +72,7 @@ namespace cloud {
 		float opacity = material->get_opacity(tex_coord);
 		float roughness = material->get_roughness(tex_coord);
 		float metallic = material->get_metallic(tex_coord);
-		fvec3 emissive = material->get_emissive(tex_coord);
+		fvec3 emissive = material->get_emissive(tex_coord) * 10; //DEBUG
 		float ior = material->ior;
 
 		vec3 binormal = cross(normal, tangent);
@@ -79,10 +80,13 @@ namespace cloud {
 
 		normal = tbn * material->get_normal(tex_coord);
 
+		roughness = math::max(roughness, 0.05F);
+		
 		return {
 			true, nearest_hit.distance, 
 			position, tex_coord, normal,
-			albedo, opacity, roughness, metallic, emissive, ior
+			albedo, opacity, roughness, metallic, emissive, 
+			ior, material->shadow_catcher, core::rand()
 		};
     }
 }

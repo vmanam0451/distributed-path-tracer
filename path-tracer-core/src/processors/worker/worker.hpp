@@ -17,6 +17,7 @@ namespace processors {
     public:
 		math::fvec3 environment_factor = math::fvec3::one;
 		bool transparent_background = false;
+        uint8_t bounce_count = 4;
         
     private:
         void download_gltf_file();
@@ -35,6 +36,8 @@ namespace processors {
         models::worker_info m_worker_info;
         std::filesystem::path m_gltf_file_path;
         cloud::distributed_scene m_scene;
+
+
 
         std::atomic<bool> m_should_terminate;
 

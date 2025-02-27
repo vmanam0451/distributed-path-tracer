@@ -45,7 +45,7 @@ namespace processors {
                 float distance = std::numeric_limits<float>::max();
                 bool hit = false;
                 std::vector<models::cloud_ray> results = m_intersection_results[ray.uuid];
-                models::cloud_ray closest_ray = results[0];
+                models::intersect_result closest_intersect_result = {false};
                 
                 auto get_intersect_result = [](const models::cloud_ray& ray) {
                     return ray.stage == models::ray_stage::DIRECT_LIGHTING_RESULTS ? ray.direct_light_intersect_result : ray.object_intersect_result;
@@ -56,7 +56,7 @@ namespace processors {
 
                     if (intersect_result.hit && intersect_result.distance < distance) {
                         distance = intersect_result.distance;
-                        closest_ray = result_ray;
+                        closest_intersect_result = intersect_result;
                         hit = true;
                     }
                 }
@@ -76,13 +76,27 @@ namespace processors {
                     ray.color = color;
                     
                     map_ray_stage_to_queue(ray);
+                    continue;
+                }
+                
+                if (ray.stage == models::ray_stage::INITIAL) {
+                    fvec3 normal = closest_intersect_result.normal;
+                    fvec3 outcoming = -ray.geometry_ray.get_dir();
+
+                    if (math::dot(normal, outcoming) <= 0) {
+                        ray.stage = models::ray_stage::COMPLETED;
+			            ray.color = fvec4::future;
+
+                        map_ray_stage_to_queue(ray);
+                        continue;
+                    }
                 }
 
                 if (ray.stage == models::ray_stage::DIRECT_LIGHTING) {
-                    ray.direct_light_intersect_result = closest_ray.direct_light_intersect_result;
+                    ray.direct_light_intersect_result = closest_intersect_result;
                 }
                 else {
-                    ray.object_intersect_result = closest_ray.object_intersect_result;
+                    ray.object_intersect_result = closest_intersect_result;
                 }
 
                 ray.stage = static_cast<models::ray_stage>(static_cast<int>(ray.stage) + 1);
