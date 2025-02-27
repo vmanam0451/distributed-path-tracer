@@ -28,6 +28,7 @@ namespace processors {
 		    float roughness = result.roughness;
 		    float metallic = result.metallic;
 		    fvec3 emissive = result.emissive * 10;
+            float ior = result.ior;
 
             float specular_probability = pbr::fresnel(outcoming, reflect(-outcoming, normal), ior);
 		    specular_probability = math::max(specular_probability, metallic);
