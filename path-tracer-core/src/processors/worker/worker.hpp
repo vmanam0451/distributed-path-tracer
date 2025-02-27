@@ -31,7 +31,7 @@ namespace processors {
         void process_direct_lighting_results(); // process result from direct lighting and handle indirect lighting
 
         void process_indirect_lighting_results(); // process result from indirect lighting
-        void process_completed_ray(const models::cloud_ray& ray);
+        void process_completed_rays();
     
         std::vector<uint8_t> generate_final_image();
 
@@ -51,6 +51,8 @@ namespace processors {
         moodycamel::ConcurrentQueue<models::cloud_ray> m_direct_lighting_result_queue;
 
         moodycamel::ConcurrentQueue<models::cloud_ray> m_indirect_lighting_queue;
+
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_completed_queue;
 
         std::map<std::string, std::vector<models::cloud_ray>> m_intersection_results;
     };

@@ -28,6 +28,8 @@ namespace processors {
         std::thread direct_lighting_thread(&worker::process_direct_lighting, this);
         std::thread direct_lighting_result_thread(&worker::process_direct_lighting_results, this);
         std::thread indirect_lighting_thread(&worker::process_indirect_lighting_results, this);
+        std::thread completed_rays_thread(&worker::process_completed_rays, this);
+
 
 
         intersection_thread.join();
@@ -35,6 +37,7 @@ namespace processors {
         direct_lighting_thread.join();
         direct_lighting_result_thread.join();
         indirect_lighting_thread.join();
+        completed_rays_thread.join();
 
          
 	    auto png_data = generate_final_image();
@@ -65,6 +68,7 @@ namespace processors {
                 m_indirect_lighting_queue.enqueue(ray);
                 break;
             case models::ray_stage::COMPLETED:
+                m_completed_queue.enqueue(ray);
                 break;
             default:
                 break;
