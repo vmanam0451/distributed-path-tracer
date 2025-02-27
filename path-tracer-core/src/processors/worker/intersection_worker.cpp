@@ -1,6 +1,7 @@
 #include "models/intersect_result.hpp"
 #include "worker.hpp"
 #include <cmath>
+#include <path_tracer/core/utils.hpp>
 #include <thread>
 
 namespace processors {
@@ -43,12 +44,16 @@ namespace processors {
             if(m_intersection_results[ray.uuid].size() == m_worker_info.num_workers) {
                 float distance;
                 bool hit = false;
-                models::cloud_ray closest_ray{};
                 std::vector<models::cloud_ray> results = m_intersection_results[ray.uuid];
-
-                auto intersect_result = ray.stage == models::ray_stage::DIRECT_LIGHTING ? ray.direct_light_intersect_result : ray.object_intersect_result;
+                models::cloud_ray closest_ray = results[0];
                 
-                for (const models::cloud_ray& result_ray : results) { 
+                auto get_intersect_result = [](const models::cloud_ray& ray) {
+                    return ray.stage == models::ray_stage::DIRECT_LIGHTING_RESULTS ? ray.direct_light_intersect_result : ray.object_intersect_result;
+                };
+
+                for (const models::cloud_ray& result_ray : results) {
+                    auto intersect_result = get_intersect_result(result_ray);
+
                     if (intersect_result.hit && intersect_result.distance < distance) {
                         distance = intersect_result.distance;
                         closest_ray = result_ray;
@@ -56,7 +61,7 @@ namespace processors {
                     }
                 }
 
-                if (!hit) {
+                if (!hit && ray.stage == models::ray_stage::INDIRECT_LIGHTING) {
                     auto environment = m_scene.m_environment;
                     math::fvec4 color;
                     float alpha = transparent_background ? 0 : 1;
@@ -73,8 +78,15 @@ namespace processors {
                     map_ray_stage_to_queue(ray);
                 }
 
-                closest_ray.stage = static_cast<models::ray_stage>(static_cast<int>(closest_ray.stage) + 1);
-                map_ray_stage_to_queue(closest_ray);
+                if (ray.stage == models::ray_stage::DIRECT_LIGHTING) {
+                    ray.direct_light_intersect_result = closest_ray.direct_light_intersect_result;
+                }
+                else {
+                    ray.object_intersect_result = closest_ray.object_intersect_result;
+                }
+
+                ray.stage = static_cast<models::ray_stage>(static_cast<int>(ray.stage) + 1);
+                map_ray_stage_to_queue(ray);
             }
         }
     }
