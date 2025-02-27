@@ -18,7 +18,7 @@ namespace processors {
 		math::fvec3 environment_factor = math::fvec3::one;
 		bool transparent_background = false;
         uint8_t bounce_count = 4;
-        
+
     private:
         void download_gltf_file();
 
@@ -31,6 +31,7 @@ namespace processors {
         void process_direct_lighting_results(); // process result from direct lighting and handle indirect lighting
 
         void process_indirect_lighting_results(); // process result from indirect lighting
+        void process_completed_rays();
     
     private:
         models::worker_info m_worker_info;

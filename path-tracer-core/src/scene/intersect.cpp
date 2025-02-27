@@ -86,7 +86,7 @@ namespace cloud {
 			true, nearest_hit.distance, 
 			position, tex_coord, normal,
 			albedo, opacity, roughness, metallic, emissive, 
-			ior, material->shadow_catcher, core::rand()
+			ior, material->shadow_catcher
 		};
     }
 }

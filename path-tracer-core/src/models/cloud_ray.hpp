@@ -1,6 +1,7 @@
 #pragma once 
 
 #include <path_tracer/geometry/ray.hpp>
+#include "path_tracer/math/vec4.hpp"
 #include "pch.hpp"
 #include "vectors.hpp"
 #include "intersect_result.hpp"
@@ -38,7 +39,7 @@ namespace models {
         models::intersect_result object_intersect_result;
         models::intersect_result direct_light_intersect_result;
 
-        math::fvec3 color;
+        math::fvec4 color;
         math::fvec3 scale;
         
         uint8_t bounce;

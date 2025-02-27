@@ -126,7 +126,6 @@ namespace processors {
 
                 float specular_probability = pbr::fresnel(outcoming, reflect(-outcoming, object_intersect.normal), object_intersect.ior);
 		        specular_probability = math::max(specular_probability, object_intersect.metallic);
-		        bool specular_sample = object_intersect.specular_sample < specular_probability;
 
 				float pdf = lerp(diffuse_pdf, specular_pdf, specular_probability);
 
@@ -145,7 +144,7 @@ namespace processors {
                 }
             }
             
-            ray.color += direct_out;
+            ray.color += fvec4(direct_out, 1);
             ray.stage = models::ray_stage::INDIRECT_LIGHTING;
             map_ray_stage_to_queue(ray);
         }
