@@ -21,20 +21,23 @@ namespace processors {
         auto work = m_worker_info.scene_info.work;
         m_scene.load_scene(m_worker_info.scene_bucket, m_worker_info.scene_root, work, m_gltf_file_path);
 
-        core::renderer renderer;
+        m_should_terminate = false;
 
-        renderer.entities = std::move(m_scene.m_entities);
-        renderer.camera = std::move(m_scene.m_camera);
-        renderer.sun_light = std::move(m_scene.m_sun_light);
-        renderer.environment = std::move(m_scene.m_environment);
+        std::thread intersection_thread(&worker::process_intersections, this);
+        std::thread intersection_result_thread(&worker::process_intersection_results, this);
+        std::thread direct_lighting_thread(&worker::process_direct_lighting, this);
+        std::thread direct_lighting_result_thread(&worker::process_direct_lighting_results, this);
+        std::thread indirect_lighting_thread(&worker::process_indirect_lighting_results, this);
 
-	    renderer.sample_count = 2;
-	    renderer.bounce_count = 4;
-	    renderer.resolution = math::uvec2(1920, 1080);
-	    renderer.environment_factor = math::fvec3::zero;
-	    renderer.transparent_background = true;
-	    
-	    auto png_data = renderer.render();
+
+        intersection_thread.join();
+        intersection_result_thread.join();
+        direct_lighting_thread.join();
+        direct_lighting_result_thread.join();
+        indirect_lighting_thread.join();
+
+         
+	    auto png_data = generate_final_image();
         std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
         cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
     }

@@ -133,6 +133,10 @@ namespace processors {
 				
                 direct_out = brdf * direct_in / math::max(pdf, math::epsilon);
 				direct_out = math::clamp(direct_out, fvec3::zero, direct_in);
+
+                ray.color += fvec4(direct_out, 1);
+                ray.stage = models::ray_stage::INDIRECT_LIGHTING;
+                map_ray_stage_to_queue(ray);
             }
             else {
                 if (object_intersect.shadow_catcher && ray.bounce == bounce_count) {
@@ -143,10 +147,6 @@ namespace processors {
                     continue;
                 }
             }
-            
-            ray.color += fvec4(direct_out, 1);
-            ray.stage = models::ray_stage::INDIRECT_LIGHTING;
-            map_ray_stage_to_queue(ray);
         }
     }
 }

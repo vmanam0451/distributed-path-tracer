@@ -31,8 +31,10 @@ namespace processors {
         void process_direct_lighting_results(); // process result from direct lighting and handle indirect lighting
 
         void process_indirect_lighting_results(); // process result from indirect lighting
-        void process_completed_rays();
+        void process_completed_ray(const models::cloud_ray& ray);
     
+        std::vector<uint8_t> generate_final_image();
+
     private:
         models::worker_info m_worker_info;
         std::filesystem::path m_gltf_file_path;

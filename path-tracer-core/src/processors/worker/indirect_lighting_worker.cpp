@@ -69,8 +69,7 @@ namespace processors {
                 uint8_t bounce = ray.bounce - 1;
 
                 if (bounce == 0) {
-                    ray.stage = models::ray_stage::COMPLETED;
-                    map_ray_stage_to_queue(ray);
+                    process_completed_ray(ray);
                     continue;
                 }
 
@@ -88,11 +87,14 @@ namespace processors {
 
                 map_ray_stage_to_queue(cloud_indirect_ray);
             }
-
             else {
                 ray.stage = models::ray_stage::COMPLETED;
                 map_ray_stage_to_queue(ray);
             }
         }
+    }
+
+    void worker::process_completed_ray(const models::cloud_ray& ray) {
+
     }
 }
