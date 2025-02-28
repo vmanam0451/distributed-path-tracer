@@ -134,17 +134,16 @@ namespace processors {
                 direct_out = brdf * direct_in / math::max(pdf, math::epsilon);
 				direct_out = math::clamp(direct_out, fvec3::zero, direct_in);
 
-                ray.color += fvec4(direct_out, 1);
+                fvec3 color = fvec3(ray.color) + direct_out;
+                ray.color = fvec4(color, 1);
+
                 ray.stage = models::ray_stage::INDIRECT_LIGHTING;
                 map_ray_stage_to_queue(ray);
             }
             else {
                 if (object_intersect.shadow_catcher && ray.bounce == bounce_count) {
                     ray.stage = models::ray_stage::COMPLETED;
-                    ray.color += fvec4::future;
-
                     map_ray_stage_to_queue(ray);
-                    continue;
                 }
             }
         }

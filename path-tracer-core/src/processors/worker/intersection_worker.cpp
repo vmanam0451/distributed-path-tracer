@@ -85,8 +85,6 @@ namespace processors {
 
                     if (math::dot(normal, outcoming) <= 0) {
                         ray.stage = models::ray_stage::COMPLETED;
-			            ray.color += fvec4::future;
-
                         map_ray_stage_to_queue(ray);
                         continue;
                     }

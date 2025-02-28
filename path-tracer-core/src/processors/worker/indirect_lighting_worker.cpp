@@ -64,7 +64,9 @@ namespace processors {
                 ray.scale *= scale;
 
                 indirect_out = ray.scale * emissive;
-                ray.color += fvec4(indirect_out, 1);
+
+                fvec3 color = fvec3(ray.color) + indirect_out; 
+                ray.color = fvec4(color, 1);
 
                 uint8_t bounce = ray.bounce - 1;
 
