@@ -1,7 +1,9 @@
+#include <cstdint>
 #include <path_tracer/core/renderer.hpp>
 #include <path_tracer/math/vec3.hpp>
 #include <path_tracer/math/vec2.hpp>
 #include "cloud/s3.hpp"
+#include "models/cloud_ray.hpp"
 #include "worker.hpp"
 
 
@@ -23,13 +25,14 @@ namespace processors {
 
         m_should_terminate = false;
 
+        generate_rays();
+
         std::thread intersection_thread(&worker::process_intersections, this);
         std::thread intersection_result_thread(&worker::process_intersection_results, this);
         std::thread direct_lighting_thread(&worker::process_direct_lighting, this);
         std::thread direct_lighting_result_thread(&worker::process_direct_lighting_results, this);
         std::thread indirect_lighting_thread(&worker::process_indirect_lighting_results, this);
         std::thread completed_rays_thread(&worker::process_completed_rays, this);
-
 
 
         intersection_thread.join();
@@ -49,6 +52,39 @@ namespace processors {
         std::string s3_gltf_file{m_worker_info.scene_root + "scene.gltf"};
         std::variant<std::filesystem::path, std::vector<uint8_t>> output { m_gltf_file_path };
         cloud::s3_download_object(m_worker_info.scene_bucket, s3_gltf_file, output);
+    }
+
+    void worker::generate_rays() {
+        using namespace math;
+
+        for(uint32_t x = 0; x < resolution.x; x++) {
+            for(uint32_t y = 0; y < resolution.y; y++) {
+                for(uint32_t sample = 0; sample < sample_count; sample++) {
+                    std::string uuid = fmt::format("{}-{}-{}", x, y, sample);
+                    
+                    uvec2 pixel(x, y);
+
+					fvec2 aa_offset = fvec2(rand(), rand());
+
+					fvec2 ndc = ((fvec2(pixel) + aa_offset) / resolution) * 2 - fvec2::one;
+					ndc.y = -ndc.y;
+					float ratio = static_cast<float>(resolution.x) / resolution.y;
+
+					geometry::ray ray = m_scene.m_camera->get_component<scene::camera>()->get_ray(ndc, ratio);
+
+                    models::cloud_ray cloud_ray;
+                    cloud_ray.uuid = uuid;
+                    cloud_ray.geometry_ray = ray;
+                    cloud_ray.intersect_ray = ray;
+                    cloud_ray.color = fvec4::zero;
+                    cloud_ray.scale = fvec3::one;
+                    cloud_ray.bounce = bounce_count;
+                    cloud_ray.stage = models::ray_stage::INITIAL;
+
+                    map_ray_stage_to_queue(cloud_ray);
+                }
+            } 
+        }
     }
 
     void worker::map_ray_stage_to_queue(const models::cloud_ray& ray) {

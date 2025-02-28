@@ -7,6 +7,8 @@
 #include "cloud/s3.hpp"
 #include "scene/scene.hpp"
 #include <concurrentqueue/concurrentqueue.h>
+#include <cstdint>
+#include <sys/types.h>
 
 namespace processors {
     class worker : public application {
@@ -15,6 +17,8 @@ namespace processors {
         void run() override;
         ~worker() override;
     public:
+        math::uvec2 resolution = math::fvec2(1920, 1080);
+        uint32_t sample_count = 100;
 		math::fvec3 environment_factor = math::fvec3::one;
 		bool transparent_background = false;
         uint8_t bounce_count = 4;
@@ -22,6 +26,7 @@ namespace processors {
     private:
         void download_gltf_file();
 
+        void generate_rays();
         void map_ray_stage_to_queue(const models::cloud_ray& ray);
 
         void process_intersections();
