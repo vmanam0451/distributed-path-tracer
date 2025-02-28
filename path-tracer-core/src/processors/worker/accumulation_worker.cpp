@@ -14,6 +14,8 @@ namespace processors {
                 continue;
             }
 
+            m_completed_rays++;
+
             std::vector<std::string> parts;
             std::stringstream ss(ray.uuid);
             std::string part;

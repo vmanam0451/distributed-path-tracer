@@ -26,6 +26,7 @@ namespace processors {
         m_scene.load_scene(m_worker_info.scene_bucket, m_worker_info.scene_root, work, m_gltf_file_path);
 
         m_should_terminate = false;
+        m_completed_rays = 0;
 
         generate_rays();
 
@@ -40,6 +41,15 @@ namespace processors {
         std::thread indirect_lighting_thread(&worker::process_indirect_lighting_results, this);
         std::thread completed_rays_thread(&worker::process_completed_rays, this);
 
+        std::thread monitor_thread([&]() {
+            uint32_t total_rays = resolution.x * resolution.y * sample_count;
+            while (m_completed_rays < total_rays) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            
+            m_should_terminate = true;
+            spdlog::info("All rays processed, signaling termination");
+        });
 
         intersection_thread.join();
         intersection_result_thread.join();
@@ -47,6 +57,7 @@ namespace processors {
         direct_lighting_result_thread.join();
         indirect_lighting_thread.join();
         completed_rays_thread.join();
+        monitor_thread.join();
 
          
 	    auto png_data = generate_final_image();

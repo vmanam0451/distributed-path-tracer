@@ -54,6 +54,7 @@ namespace processors {
         std::vector<std::vector<pixel>> pixels;
 
         std::atomic<bool> m_should_terminate;
+        std::atomic<uint32_t> m_completed_rays;
 
         moodycamel::ConcurrentQueue<models::cloud_ray> m_intersection_queue;
         moodycamel::ConcurrentQueue<models::cloud_ray> m_intersection_result_queue;
