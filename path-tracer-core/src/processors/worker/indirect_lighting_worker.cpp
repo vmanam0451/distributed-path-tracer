@@ -13,7 +13,7 @@ namespace processors {
 
         while (!m_should_terminate) {
             models::cloud_ray ray{};
-            if(!m_direct_lighting_queue.try_dequeue(ray)) {
+            if(!m_indirect_lighting_queue.try_dequeue(ray)) {
                 std::this_thread::yield();
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 continue;

@@ -29,7 +29,6 @@ namespace processors {
 
         generate_rays();
 
-        std::vector<std::vector<pixel>> pixels;
 		pixels.resize(resolution.x);
 		for (auto& column : pixels)
 			column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
@@ -67,7 +66,7 @@ namespace processors {
         for(uint32_t x = 0; x < resolution.x; x++) {
             for(uint32_t y = 0; y < resolution.y; y++) {
                 for(uint32_t sample = 0; sample < sample_count; sample++) {
-                    std::string uuid = fmt::format("{}-{}-{}", x, y, sample);
+                    std::string uuid = fmt::format("{}_{}_{}", x, y, sample);
                     
                     uvec2 pixel(x, y);
 
