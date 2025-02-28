@@ -61,6 +61,8 @@ namespace processors {
                     }
                 }
 
+                m_intersection_results.erase(ray.uuid);
+
                 if (!hit && ray.stage == models::ray_stage::INDIRECT_LIGHTING) {
                     auto environment = m_scene.m_environment;
                     math::fvec4 color;
@@ -98,7 +100,7 @@ namespace processors {
                 }
 
                 ray.stage = static_cast<models::ray_stage>(static_cast<int>(ray.stage) + 1);
-                map_ray_stage_to_queue(ray);
+                map_ray_stage_to_queue(ray);   
             }
         }
     }
