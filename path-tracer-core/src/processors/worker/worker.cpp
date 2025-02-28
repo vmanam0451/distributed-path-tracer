@@ -2,6 +2,8 @@
 #include <path_tracer/core/renderer.hpp>
 #include <path_tracer/math/vec3.hpp>
 #include <path_tracer/math/vec2.hpp>
+#include <path_tracer/image/image.hpp>
+#include <path_tracer/core/utils.hpp>
 #include "cloud/s3.hpp"
 #include "models/cloud_ray.hpp"
 #include "worker.hpp"
@@ -26,6 +28,11 @@ namespace processors {
         m_should_terminate = false;
 
         generate_rays();
+
+        std::vector<std::vector<pixel>> pixels;
+		pixels.resize(resolution.x);
+		for (auto& column : pixels)
+			column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
 
         std::thread intersection_thread(&worker::process_intersections, this);
         std::thread intersection_result_thread(&worker::process_intersection_results, this);
@@ -109,6 +116,27 @@ namespace processors {
             default:
                 break;
         }
+    }
+
+    std::vector<uint8_t> worker::generate_final_image() {
+        using namespace math;
+
+        auto img = std::make_shared<image::image>(resolution, 4, false, true);
+
+        for (uint32_t y = 0; y < resolution.y; y++) {
+            for (uint32_t x = 0; x < resolution.x; x++) {
+                fvec3 color = core::tonemap_approx_aces(pixels[x][y].color);
+                float alpha = pixels[x][y].alpha;
+
+                uvec2 pixel(x, y);
+                img->write(pixel, 0, color.x);
+                img->write(pixel, 1, color.y);
+                img->write(pixel, 2, color.z);
+                img->write(pixel, 3, alpha);
+            }
+        }
+
+        return img->save_to_memory_png();
     }
 
 }
