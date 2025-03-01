@@ -17,8 +17,8 @@ namespace processors {
         void run() override;
         ~worker() override;
     public:
-        math::uvec2 resolution = math::fvec2(1920, 1080);
-        uint32_t sample_count = 100;
+        math::uvec2 resolution = math::fvec2(640, 480);
+        uint32_t sample_count = 20;
 		math::fvec3 environment_factor = math::fvec3::one;
 		bool transparent_background = false;
         uint8_t bounce_count = 4;

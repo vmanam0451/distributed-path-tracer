@@ -20,7 +20,9 @@
       "extensions": [
         "ms-vscode.cmake-tools",
         "llvm-vs-code-extensions.vscode-clangd",
-        "ms-python.python"
+        "ms-python.python",
+        "amazonwebservices.aws-toolkit-vscode",
+        "eamodio.gitlens"
       ]
     }
   },

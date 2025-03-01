@@ -145,6 +145,10 @@ namespace processors {
                     ray.stage = models::ray_stage::COMPLETED;
                     map_ray_stage_to_queue(ray);
                 }
+                else {
+                    ray.stage = models::ray_stage::INDIRECT_LIGHTING;
+                    map_ray_stage_to_queue(ray);
+                }
             }
         }
     }

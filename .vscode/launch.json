@@ -29,7 +29,7 @@
                 "containerBuild": true
             },
             "aws": {
-                "credentials": "profile:path-tracer-preprocessor"
+                "credentials": "profile:path_trace_user"
             }
         },
     ]

@@ -5,7 +5,7 @@ Description: Path Tracer App Stack
 Globals:
   Function:
     Timeout: 900 # 15 minutes
-    MemorySize: 2048
+    MemorySize: 4096
 
 Parameters:
   ENV:
@@ -39,6 +39,12 @@ Resources:
       Environment:
         Variables:
           ENV: !Ref ENV
+      Events:
+        PathTrace:
+          Type: Api 
+          Properties:
+            Path: /path-trace
+            Method: get
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ../path-tracer-core

@@ -63,7 +63,7 @@ namespace processors {
 
                 m_intersection_results.erase(ray.uuid);
 
-                if (!hit && ray.stage == models::ray_stage::INDIRECT_LIGHTING) {
+                if (!hit && ray.stage == models::ray_stage::INITIAL) {
                     auto environment = m_scene.m_environment;
                     math::fvec4 color;
                     float alpha = transparent_background ? 0 : 1;

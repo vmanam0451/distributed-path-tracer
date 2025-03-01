@@ -51,6 +51,22 @@ namespace processors {
             spdlog::info("All rays processed, signaling termination");
         });
 
+        std::thread debug_thread([&]() {
+            while (!m_should_terminate) {
+                spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, DIRECT_RESULT={}, INDIRECT={}, COMPLETED={}",
+                    m_intersection_queue.size_approx(),
+                    m_intersection_result_queue.size_approx(),
+                    m_direct_lighting_queue.size_approx(),
+                    m_direct_lighting_result_queue.size_approx(),
+                    m_indirect_lighting_queue.size_approx(),
+                    m_completed_queue.size_approx());
+                spdlog::info("Completed Rays: {}", m_completed_rays.load());
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+            }
+        });
+    
+        debug_thread.join();
+
         intersection_thread.join();
         intersection_result_thread.join();
         direct_lighting_thread.join();
