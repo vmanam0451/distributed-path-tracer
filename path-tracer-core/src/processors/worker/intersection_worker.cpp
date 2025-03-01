@@ -15,7 +15,7 @@ namespace processors {
             }
 
             auto result = m_scene.intersect(ray.intersect_ray);
-            if (ray.stage == models::ray_stage::DIRECT_LIGHTING_RESULTS) {
+            if (ray.stage == models::ray_stage::DIRECT_LIGHTING) {
                 ray.direct_light_intersect_result = result;
             }
             else {
@@ -27,6 +27,10 @@ namespace processors {
     }
 
     void worker::process_intersection_results() {
+        auto get_intersect_result = [](const models::cloud_ray& ray) {
+            return ray.stage == models::ray_stage::DIRECT_LIGHTING ? ray.direct_light_intersect_result : ray.object_intersect_result;
+        };
+        
         while (!m_should_terminate) {
             models::cloud_ray ray{};
             if(!m_intersection_result_queue.try_dequeue(ray)) {
@@ -47,15 +51,11 @@ namespace processors {
                 std::vector<models::cloud_ray> results = m_intersection_results[ray.uuid];
                 models::intersect_result closest_intersect_result = {false};
                 
-                auto get_intersect_result = [](const models::cloud_ray& ray) {
-                    return ray.stage == models::ray_stage::DIRECT_LIGHTING_RESULTS ? ray.direct_light_intersect_result : ray.object_intersect_result;
-                };
-
                 for (const models::cloud_ray& result_ray : results) {
                     auto intersect_result = get_intersect_result(result_ray);
 
                     if (intersect_result.hit && intersect_result.distance < distance) {
-                        distance = intersect_result.distance;
+                        distance = intersect_result.distance ;
                         closest_intersect_result = intersect_result;
                         hit = true;
                     }

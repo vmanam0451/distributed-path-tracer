@@ -17,7 +17,7 @@ namespace processors {
                 continue;
             }
 
-            auto result = ray.direct_light_intersect_result;
+            auto result = ray.object_intersect_result;
             auto geometry_ray = ray.geometry_ray;
 
             fvec3 albedo = result.albedo;
@@ -55,7 +55,10 @@ namespace processors {
                         ray.intersect_ray = direct_ray;
                         m_intersection_queue.enqueue(ray);
                     }
-
+                    else {
+                        ray.stage = models::ray_stage::INDIRECT_LIGHTING;
+                        map_ray_stage_to_queue(ray);
+                    }
                 }
                 else {
                     ray.stage = models::ray_stage::INDIRECT_LIGHTING;
@@ -96,9 +99,9 @@ namespace processors {
                     );
 
                     models::cloud_ray opacity_cloud_ray = ray;
-
                     opacity_cloud_ray.geometry_ray = opacity_ray;
                     opacity_cloud_ray.intersect_ray = opacity_ray;
+
                     opacity_cloud_ray.stage = models::ray_stage::INITIAL;
                     map_ray_stage_to_queue(opacity_cloud_ray);
                     continue;
@@ -132,6 +135,7 @@ namespace processors {
                 fvec3 direct_in = m_scene.m_sun_light->get_component<scene::sun_light>()->energy;
 				
                 direct_out = brdf * direct_in / math::max(pdf, math::epsilon);
+                direct_out = ray.scale * direct_out;
 				direct_out = math::clamp(direct_out, fvec3::zero, direct_in);
 
                 fvec3 color = fvec3(ray.color) + direct_out;
