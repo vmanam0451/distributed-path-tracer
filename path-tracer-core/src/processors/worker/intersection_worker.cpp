@@ -75,7 +75,7 @@ namespace processors {
                     }
 
                     ray.stage = models::ray_stage::COMPLETED;
-                    ray.color += color;
+                    ray.color += fvec4(ray.scale * fvec3(color), alpha);
                     
                     map_ray_stage_to_queue(ray);
                     continue;

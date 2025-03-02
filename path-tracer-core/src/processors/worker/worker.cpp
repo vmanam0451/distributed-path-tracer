@@ -48,6 +48,12 @@ namespace processors {
             }
             
             m_should_terminate = true;
+            for(auto x = 0; x < pixels.size(); x++) {
+                for(auto y = 0; y < pixels[x].size(); y++) {
+                    spdlog::info("Processed ray for pixel: ({}, {}) Color: RGBA({}, {}, {}, {})", x, y,
+                            pixels[x][y].color.x, pixels[x][y].color.y, pixels[x][y].color.z, pixels[x][y].alpha);
+                }
+            }
             spdlog::info("All rays processed, signaling termination");
         });
 
@@ -61,7 +67,7 @@ namespace processors {
                     m_indirect_lighting_queue.size_approx(),
                     m_completed_queue.size_approx());
                 spdlog::info("Completed Rays: {}", m_completed_rays.load());
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
         });
     

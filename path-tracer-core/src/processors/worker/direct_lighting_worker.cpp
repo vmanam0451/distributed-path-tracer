@@ -84,9 +84,7 @@ namespace processors {
             auto object_intersect = ray.object_intersect_result;
             auto sunlight = m_scene.m_sun_light;
             
-            fvec3 direct_incoming = sunlight->get_global_transform().basis * fvec3::backward;
-			direct_incoming = util::rand_cone_vec(rand(), cos(rand() * sunlight->get_component<scene::sun_light>()->angular_radius),
-			                                        direct_incoming);
+            fvec3 direct_incoming = ray.intersect_ray.get_dir();
             fvec3 outcoming = -ray.geometry_ray.get_dir();
             
             fvec3 direct_out;
@@ -135,8 +133,8 @@ namespace processors {
                 fvec3 direct_in = m_scene.m_sun_light->get_component<scene::sun_light>()->energy;
 				
                 direct_out = brdf * direct_in / math::max(pdf, math::epsilon);
-                direct_out = ray.scale * direct_out;
 				direct_out = math::clamp(direct_out, fvec3::zero, direct_in);
+                direct_out = ray.scale * direct_out;
 
                 fvec3 color = fvec3(ray.color) + direct_out;
                 ray.color = fvec4(color, 1);

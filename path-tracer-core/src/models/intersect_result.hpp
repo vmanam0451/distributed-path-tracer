@@ -9,7 +9,6 @@ namespace models {
 		float distance;
 
         math::fvec3 position;
-		math::fvec2 tex_coord;
 		math::fvec3 normal;
 
         math::fvec3 albedo;
@@ -22,6 +21,6 @@ namespace models {
         bool shadow_catcher;
 	};
     
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(intersect_result, hit, distance, position, tex_coord, normal, albedo, 
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(intersect_result, hit, distance, position, normal, albedo, 
         opacity, roughness, metallic, emissive, ior, shadow_catcher)
 }

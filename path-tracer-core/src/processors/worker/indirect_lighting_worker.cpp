@@ -27,14 +27,17 @@ namespace processors {
 		    float opacity = result.opacity;
 		    float roughness = result.roughness;
 		    float metallic = result.metallic;
-		    fvec3 emissive = result.emissive * 10;
+		    fvec3 emissive = result.emissive;
             float ior = result.ior;
+
+            
+            fvec3 contribution = ray.scale * emissive;
+            ray.color += fvec4(contribution, 1);
 
             float specular_probability = pbr::fresnel(outcoming, reflect(-outcoming, normal), ior);
 		    specular_probability = math::max(specular_probability, metallic);
 		    bool specular_sample = core::rand() < specular_probability;
 
-            fvec3 indirect_out;
             fvec2 rand(core::rand(), core::rand());
 		    fvec3 indirect_incoming = specular_sample
 			                          ? pbr::importance_specular(rand, normal, outcoming, roughness)
@@ -60,13 +63,9 @@ namespace processors {
 
 			    float pdf = lerp(diffuse_pdf, specular_pdf, specular_probability);
 
-                fvec3 scale = brdf / math::max(pdf, math::epsilon);
-                ray.scale *= scale;
-
-                indirect_out = ray.scale * emissive;
-
-                fvec3 color = fvec3(ray.color) + indirect_out; 
-                ray.color = fvec4(color, 1);
+                fvec3 weight = ray.scale * brdf / math::max(pdf, math::epsilon);
+                weight = math::clamp(weight, fvec3::zero, ray.scale);
+                ray.scale = weight;
 
                 uint8_t bounce = ray.bounce - 1;
 

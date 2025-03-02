@@ -54,7 +54,6 @@ namespace processors {
             pixels[x][y].alpha = pixels[x][y].alpha * sample + data.w; 
             pixels[x][y].alpha /= sample + 1;
             pixels[x][y].sample = sample + 1;
-            spdlog::info("Processed ray for pixel: ({}, {}) sample: {}", x, y, sample);
         }
     }
 }

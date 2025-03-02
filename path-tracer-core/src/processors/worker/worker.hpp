@@ -17,8 +17,8 @@ namespace processors {
         void run() override;
         ~worker() override;
     public:
-        math::uvec2 resolution = math::fvec2(1920, 1080);
-        uint32_t sample_count = 2;
+        math::uvec2 resolution = math::fvec2(640, 480);
+        uint32_t sample_count = 20;
 		math::fvec3 environment_factor = math::fvec3::one;
 		bool transparent_background = false;
         uint8_t bounce_count = 4;
@@ -37,6 +37,19 @@ namespace processors {
 
         void process_indirect_lighting_results(); // process result from indirect lighting
         void process_completed_rays();
+
+        // TODO: 
+        /*
+            Simplify lifecycle.
+            Should Only need 3.
+                - Intersection w/ object
+                - Intersection w/ direct light
+                - Accumulate
+            Test with this simplified lifecycle.
+            If not working, test with keeping track of samples and accumulating them in the complete stage
+                i.e ray has vector<samples> sample={direct light, emissive, scale}
+            If not working, test intersection with renderer. Call scene.intersect inside renderer and make sure that is working
+        */
     
         std::vector<uint8_t> generate_final_image();
     private:
