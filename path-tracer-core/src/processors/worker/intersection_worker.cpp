@@ -1,3 +1,4 @@
+#include "models/cloud_ray.hpp"
 #include "models/intersect_result.hpp"
 #include "worker.hpp"
 #include <cmath>
@@ -5,7 +6,7 @@
 #include <thread>
 
 namespace processors {
-    void worker::process_intersections() {
+    void worker::handle_intersections() {
         while (!m_should_terminate) {
             models::cloud_ray ray{};
             if(!m_intersection_queue.try_dequeue(ray)) {
@@ -15,25 +16,21 @@ namespace processors {
             }
 
             auto result = m_scene.intersect(ray.intersect_ray);
-            if (ray.stage == models::ray_stage::DIRECT_LIGHTING) {
-                ray.direct_light_intersect_result = result;
+            if (ray.stage == models::ray_stage::LIGHTING) {
+                ray.direct_light_intersect_result = result.hit;
+                m_direct_lighting_result_queue.enqueue(ray);
             }
             else {
-                ray.object_intersect_result = result;
-            }
-            
-            m_intersection_result_queue.enqueue(ray);
+                ray.intersect_result = result;
+                m_object_intersection_result_queue.enqueue(ray);
+            }            
         }
     }
 
-    void worker::process_intersection_results() {
-        auto get_intersect_result = [](const models::cloud_ray& ray) {
-            return ray.stage == models::ray_stage::DIRECT_LIGHTING ? ray.direct_light_intersect_result : ray.object_intersect_result;
-        };
-        
+    void worker::handle_object_intersection_results() {
         while (!m_should_terminate) {
             models::cloud_ray ray{};
-            if(!m_intersection_result_queue.try_dequeue(ray)) {
+            if(!m_object_intersection_result_queue.try_dequeue(ray)) {
                 std::this_thread::yield();
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 continue;
@@ -52,7 +49,7 @@ namespace processors {
                 models::intersect_result closest_intersect_result = {false};
                 
                 for (const models::cloud_ray& result_ray : results) {
-                    auto intersect_result = get_intersect_result(result_ray);
+                    auto intersect_result = ray.intersect_result;
 
                     if (intersect_result.hit && intersect_result.distance < distance) {
                         distance = intersect_result.distance ;
@@ -61,46 +58,41 @@ namespace processors {
                     }
                 }
 
-                m_intersection_results.erase(ray.uuid);
-
-                if (!hit && ray.stage == models::ray_stage::INITIAL) {
-                    auto environment = m_scene.m_environment;
-                    math::fvec4 color;
+                if (!hit) {
+                    models::sample sample{};
                     float alpha = transparent_background ? 0 : 1;
-                    if (m_scene.m_environment) {
-                        color = fvec4(fvec3(environment->sample(core::equirectangular_proj(ray.geometry_ray.get_dir()))) * environment_factor, alpha);
+                    auto environment = m_scene.m_environment;
+                    if (environment)
+                        sample.color = fvec4(fvec3(environment->sample(core::equirectangular_proj(ray.geometry_ray.get_dir()))) * environment_factor, alpha);
                     }
                     else {
-                        color = math::fvec4(environment_factor, alpha);
+                        sample.color = fvec4(fvec3(environment->sample(equirectangular_proj(ray.get_dir()))) * environment_factor, alpha);
                     }
 
-                    ray.stage = models::ray_stage::COMPLETED;
-                    ray.color += fvec4(ray.scale * fvec3(color), alpha);
-                    
-                    map_ray_stage_to_queue(ray);
+                    sample.scale = fvec3::one;
+                    ray.samples.push_back(sample);
+
                     continue;
                 }
-                
-                if (ray.stage == models::ray_stage::INITIAL) {
-                    fvec3 normal = closest_intersect_result.normal;
-                    fvec3 outcoming = -ray.geometry_ray.get_dir();
 
-                    if (math::dot(normal, outcoming) <= 0) {
-                        ray.stage = models::ray_stage::COMPLETED;
-                        map_ray_stage_to_queue(ray);
-                        continue;
+                auto sunlight = m_scene.m_sun_light;
+                if(sunlight) {
+                    fvec3 direct_incoming = sunlight->get_global_transform().basis * fvec3::backward;
+			        direct_incoming = util::rand_cone_vec(rand(), math::cos(rand() * sunlight->get_component<scene::sun_light>()->angular_radius),
+			                                      direct_incoming);
+
+                    if (math::dot(normal, direct_incoming) > 0) {
+                        geometry::ray direct_ray(
+                            result.position + direct_incoming * math::epsilon,
+                            direct_incoming
+                        );
+
+                        ray.intersect_ray = direct_ray;
                     }
                 }
-
-                if (ray.stage == models::ray_stage::DIRECT_LIGHTING) {
-                    ray.direct_light_intersect_result = closest_intersect_result;
-                }
                 else {
-                    ray.object_intersect_result = closest_intersect_result;
+                    
                 }
-
-                ray.stage = static_cast<models::ray_stage>(static_cast<int>(ray.stage) + 1);
-                map_ray_stage_to_queue(ray);   
             }
         }
     }

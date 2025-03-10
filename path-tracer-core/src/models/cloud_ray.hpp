@@ -24,27 +24,41 @@ namespace geometry {
 
 namespace models {
     enum ray_stage {
-        INITIAL,
-        DIRECT_LIGHTING,
-        DIRECT_LIGHTING_RESULTS,
-        INDIRECT_LIGHTING,
-        COMPLETED
+        INTERSECT,
+        LIGHTING,
+        ACCUMULATE
     };
+
+    struct sample {
+        math::fvec4 color;
+        math::fvec3 scale;
+    };
+
+    // TODO: Improve memory mangement
+    /*
+        Don't store intersect_result directly.
+        Use UUID.
+            - Have different types of rays
+                - Intersection Rays
+                - Rays with sample
+        Use UUID to map rays to a result
+    */
     
     struct cloud_ray {
         std::string uuid;
+
         geometry::ray geometry_ray;
-
         geometry::ray intersect_ray;
-        models::intersect_result object_intersect_result;
-        models::intersect_result direct_light_intersect_result;
+        
+        models::intersect_result intersect_result; 
+        bool direct_light_intersect_result;
 
-        math::fvec4 color;
-        math::fvec3 scale;
+        std::vector<sample> samples;
         
         uint8_t bounce;
         ray_stage stage;
     };
 
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(cloud_ray, uuid, geometry_ray, intersect_ray, object_intersect_result, direct_light_intersect_result, bounce, stage)
+    // TODO: Define Serialization
+    //NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(cloud_ray, uuid, geometry_ray, intersect_ray, intersect_result, direct_light_intersect_result, samples, bounce, stage)
 }
