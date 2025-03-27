@@ -25,13 +25,9 @@ namespace geometry {
 namespace models {
     enum ray_stage {
         INTERSECT,
-        LIGHTING,
+        DIRECT_LIGHTING,
+        SHADING,
         ACCUMULATE
-    };
-
-    struct sample {
-        math::fvec4 color;
-        math::fvec3 scale;
     };
 
     // TODO: Improve memory mangement
@@ -47,14 +43,15 @@ namespace models {
     struct cloud_ray {
         std::string uuid;
 
-        geometry::ray geometry_ray;
-        geometry::ray intersect_ray;
+        geometry::ray ray;
+        geometry::ray direct_light_ray;
         
-        models::intersect_result intersect_result; 
+        float object_intersect_distance; 
         bool direct_light_intersect_result;
 
-        std::vector<sample> samples;
-        
+        math::fvec4 color;
+        math::fvec3 scale;
+
         uint8_t bounce;
         ray_stage stage;
     };

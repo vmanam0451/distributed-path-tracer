@@ -22,7 +22,7 @@ namespace cloud {
 				stack.push(child.get());
 
 			if (auto model = entity->get_component<scene::model>()) {
-				auto hit = model->intersect(ray, false);
+				auto hit = model->intersect(ray);
 
 				if (!hit.has_hit())
 					continue;
@@ -38,7 +38,6 @@ namespace cloud {
 		if (!nearest_hit.has_hit())
 			return {false};
 
-		
 		const auto& mesh = nearest_hit.surface->mesh;
 		const auto& material = nearest_hit.surface->material;
 
@@ -68,25 +67,13 @@ namespace cloud {
 			v2.tangent * nearest_hit.barycentric.y +
 			v3.tangent * nearest_hit.barycentric.z));
 
-		fvec3 albedo = material->get_albedo(tex_coord);
-		float opacity = material->get_opacity(tex_coord);
-		float roughness = material->get_roughness(tex_coord);
-		float metallic = material->get_metallic(tex_coord);
-		fvec3 emissive = material->get_emissive(tex_coord) * 10; //DEBUG
-		float ior = material->ior;
-
-		vec3 binormal = cross(normal, tangent);
-		fmat3 tbn(tangent, binormal, normal);
-
-		normal = tbn * material->get_normal(tex_coord);
-
-		roughness = math::max(roughness, 0.05F);
-		
 		return {
-			true, nearest_hit.distance, 
-			position, normal,
-			albedo, opacity, roughness, metallic, emissive, 
-			ior, material->shadow_catcher
+			true,
+			material,
+			position,
+			tex_coord,
+			normal,
+			tangent
 		};
     }
 }

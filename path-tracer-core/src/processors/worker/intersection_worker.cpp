@@ -1,99 +1,155 @@
-#include "models/cloud_ray.hpp"
-#include "models/intersect_result.hpp"
-#include "worker.hpp"
-#include <cmath>
-#include <path_tracer/core/utils.hpp>
-#include <thread>
+// #include "models/cloud_ray.hpp"
+// #include "models/intersect_result.hpp"
+// #include "path_tracer/util/rand_cone_vec.hpp"
+// #include "worker.hpp"
+// #include <cmath>
+// #include <path_tracer/core/utils.hpp>
+// #include <thread>
 
-namespace processors {
-    void worker::handle_intersections() {
-        while (!m_should_terminate) {
-            models::cloud_ray ray{};
-            if(!m_intersection_queue.try_dequeue(ray)) {
-                std::this_thread::yield();
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                continue;
-            }
+// namespace processors {
+//     void worker::process_object_intersections() {
+//         while (!m_should_terminate) {
+//             models::cloud_ray ray{};
+//             if(!m_object_intersection_queue.try_dequeue(ray)) {
+//                 std::this_thread::yield();
+//                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+//                 continue;
+//             }
 
-            auto result = m_scene.intersect(ray.intersect_ray);
-            if (ray.stage == models::ray_stage::LIGHTING) {
-                ray.direct_light_intersect_result = result.hit;
-                m_direct_lighting_result_queue.enqueue(ray);
-            }
-            else {
-                ray.intersect_result = result;
-                m_object_intersection_result_queue.enqueue(ray);
-            }            
-        }
-    }
+//             auto result = m_scene.intersect(ray.ray);
+//             ray.object_intersect_distance = result.hit ? result.distance : std::numeric_limits<float>::max();
+//             if (result.hit) {
+//                 auto sun_light = m_scene.m_sun_light;
+//                 if (sun_light) {
+//                     fvec3 direct_incoming = sun_light->get_global_transform().basis * fvec3::backward;
+// 			        direct_incoming = util::rand_cone_vec(rand(), math::cos(rand() * sun_light->get_component<scene::sun_light>()->angular_radius),
+// 			                                      direct_incoming);
 
-    void worker::handle_object_intersection_results() {
-        while (!m_should_terminate) {
-            models::cloud_ray ray{};
-            if(!m_object_intersection_result_queue.try_dequeue(ray)) {
-                std::this_thread::yield();
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                continue;
-            }
-
-            if(!m_intersection_results.contains(ray.uuid)) {
-                m_intersection_results[ray.uuid] = std::vector<models::cloud_ray>{};
-            }
-
-            m_intersection_results[ray.uuid].push_back(ray);
-
-            if(m_intersection_results[ray.uuid].size() == m_worker_info.num_workers) {
-                float distance = std::numeric_limits<float>::max();
-                bool hit = false;
-                std::vector<models::cloud_ray> results = m_intersection_results[ray.uuid];
-                models::intersect_result closest_intersect_result = {false};
+//                     geometry::ray direct_ray(
+//                         result.position + direct_incoming * math::epsilon,
+//                         direct_incoming);
                 
-                for (const models::cloud_ray& result_ray : results) {
-                    auto intersect_result = ray.intersect_result;
+//                     ray.direct_light_ray = direct_ray;
+//                 }
+//             }
 
-                    if (intersect_result.hit && intersect_result.distance < distance) {
-                        distance = intersect_result.distance ;
-                        closest_intersect_result = intersect_result;
-                        hit = true;
-                    }
-                }
+//             m_object_intersection_result_queue.enqueue(ray);
+//         }
+//     }
 
-                if (!hit) {
-                    models::sample sample{};
-                    float alpha = transparent_background ? 0 : 1;
-                    auto environment = m_scene.m_environment;
-                    if (environment)
-                        sample.color = fvec4(fvec3(environment->sample(core::equirectangular_proj(ray.geometry_ray.get_dir()))) * environment_factor, alpha);
-                    }
-                    else {
-                        sample.color = fvec4(fvec3(environment->sample(equirectangular_proj(ray.get_dir()))) * environment_factor, alpha);
-                    }
+//     void worker::process_direct_lighting_intersections() {
+//         while (!m_should_terminate) {
+//             models::cloud_ray ray{};
+//             if(!m_direct_lighting_intersection_queue.try_dequeue(ray)) {
+//                 std::this_thread::yield();
+//                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+//                 continue;
+//             }
 
-                    sample.scale = fvec3::one;
-                    ray.samples.push_back(sample);
+//             if (m_scene.sunlight) {
+//                 auto result = m_scene.intersect(ray.direct_light_ray);
+//                 ray.direct_light_intersect_result = result.hit;
+//                 m_direct_lighting_intersection_result_queue.enqueue(ray);
+//             }
+//             else {
+//                 m_shading_queue.enqueue(ray);
+//             }
+//         }
+//     }
 
-                    continue;
-                }
+//     void worker::process_object_intersection_results() {
+//         while (!m_should_terminate) {
+//             models::cloud_ray ray{};
+//             if(!m_object_intersection_result_queue.try_dequeue(ray)) {
+//                 std::this_thread::yield();
+//                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+//                 continue;
+//             }
 
-                auto sunlight = m_scene.m_sun_light;
-                if(sunlight) {
-                    fvec3 direct_incoming = sunlight->get_global_transform().basis * fvec3::backward;
-			        direct_incoming = util::rand_cone_vec(rand(), math::cos(rand() * sunlight->get_component<scene::sun_light>()->angular_radius),
-			                                      direct_incoming);
+//             if(!m_object_intersection_results.contains(ray.uuid)) {
+//                 m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+//                 if (m_worker_info.num_workers == 1) {
+//                     m_object_intersection_results.erase(ray.uuid);
+                
+//                     auto best_ray = ray;
+//                     if (best_ray.object_intersect_distance == std::numeric_limits<float>::max()) {
+//                         best_ray.stage = models::ray_stage::SHADING;
+//                     }
+//                     else {
+//                         best_ray.stage = models::ray_stage::DIRECT_LIGHTING;
+//                     }
+//                     map_ray_stage_to_queue(best_ray);
+//                 }
+//                 continue;
+//             }
 
-                    if (math::dot(normal, direct_incoming) > 0) {
-                        geometry::ray direct_ray(
-                            result.position + direct_incoming * math::epsilon,
-                            direct_incoming
-                        );
+//             auto results = m_object_intersection_results[ray.uuid];
+//             if(results.first < m_worker_info.num_workers) {
+//                 auto previous_best = results.second;
+//                 if (ray.object_intersect_distance < previous_best.object_intersect_distance) {
+//                     m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{results.first + 1, ray};
+//                 }
+//                 else {
+//                     m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{results.first + 1, previous_best};
+//                 }
+//             }
+            
+//             results = m_object_intersection_results[ray.uuid];
+//             if (results.first == m_worker_info.num_workers) {
+//                 m_object_intersection_results.erase(ray.uuid);
+                
+//                 auto best_ray = results.second;
+//                 if (best_ray.object_intersect_distance == std::numeric_limits<float>::max()) {
+//                     best_ray.stage = models::ray_stage::SHADING;
+//                 }
+//                 else {
+//                     best_ray.stage = models::ray_stage::DIRECT_LIGHTING;
+//                 }
+//                 map_ray_stage_to_queue(best_ray);
+//             }
+//         }
+//     }
 
-                        ray.intersect_ray = direct_ray;
-                    }
-                }
-                else {
-                    
-                }
-            }
-        }
-    }
-}
+//     void worker::process_direct_lighting_intersection_results() {
+//         while (!m_should_terminate) {
+//             models::cloud_ray ray{};
+//             if(!m_direct_lighting_intersection_result_queue.try_dequeue(ray)) {
+//                 std::this_thread::yield();
+//                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+//                 continue;
+//             }
+
+//             if(!m_direct_lighting_intersection_results.contains(ray.uuid)) {
+//                 m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+//                 if (m_worker_info.num_workers == 1) {
+//                     m_direct_lighting_intersection_results.erase(ray.uuid);
+                
+//                     auto best_ray = ray;
+//                     best_ray.stage = models::ray_stage::SHADING;
+//                     map_ray_stage_to_queue(best_ray);
+//                 }
+//                 continue;
+//             }
+
+//             auto results = m_direct_lighting_intersection_results[ray.uuid];
+//             if (results.first < m_worker_info.num_workers) {
+//                 auto previous = results.second;
+//                 if (!previous.direct_light_intersect_result && ray.direct_light_intersect_result) {
+//                     m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{results.first + 1, ray};
+//                 }
+//                 else {
+//                     m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{results.first + 1, previous};
+//                 }
+//             }
+            
+//             results = m_direct_lighting_intersection_results[ray.uuid];
+//             if (results.first == m_worker_info.num_workers) {
+//                 m_direct_lighting_intersection_results.erase(ray.uuid);
+                
+//                 auto best_ray = results.second;
+//                 best_ray.stage = models::ray_stage::SHADING;
+//                 map_ray_stage_to_queue(best_ray);
+//             }
+//         }
+//     }
+// }
