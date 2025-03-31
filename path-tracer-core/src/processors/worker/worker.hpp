@@ -29,14 +29,19 @@ namespace processors {
         void generate_rays();
         void map_ray_stage_to_queue(const models::cloud_ray& ray);
 
-        void process_intersections();
-        void process_intersection_results();
+        void process_object_intersections();
+        void process_object_intersection_results();
 
-        void process_direct_lighting(); // handle opacity, and direct lighting
-        void process_direct_lighting_results(); // process result from direct lighting and handle indirect lighting
 
-        void process_indirect_lighting_results(); // process result from indirect lighting
-        void process_completed_rays();
+
+        void process_direct_lighting_intersections();
+        void process_direct_lighting_intersection_results(); 
+
+        void process_shading();
+        void process_accumulation();
+
+        std::vector<uint8_t> render() const;
+        math::fvec4 trace_iter(uint8_t initial_bounce, const geometry::ray& initial_ray) const;
 
         // TODO: 
         /*
@@ -69,16 +74,17 @@ namespace processors {
         std::atomic<bool> m_should_terminate;
         std::atomic<uint32_t> m_completed_rays;
 
-        moodycamel::ConcurrentQueue<models::cloud_ray> m_intersection_queue;
-        moodycamel::ConcurrentQueue<models::cloud_ray> m_intersection_result_queue;
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_queue;
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_result_queue;
 
-        moodycamel::ConcurrentQueue<models::cloud_ray> m_direct_lighting_queue;
-        moodycamel::ConcurrentQueue<models::cloud_ray> m_direct_lighting_result_queue;
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_direct_lighting_intersection_queue;
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_direct_lighting_intersection_result_queue;
 
-        moodycamel::ConcurrentQueue<models::cloud_ray> m_indirect_lighting_queue;
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_shading_queue;
 
-        moodycamel::ConcurrentQueue<models::cloud_ray> m_completed_queue;
+        moodycamel::ConcurrentQueue<models::cloud_ray> m_accumulate_queue;
 
-        std::map<std::string, std::vector<models::cloud_ray>> m_intersection_results;
+        std::map<std::string, std::pair<int, models::cloud_ray>> m_object_intersection_results;
+        std::map<std::string, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
     };
 }

@@ -6,6 +6,57 @@ using namespace math;
 using namespace scene;
 
 namespace cloud {
+	models::intersect_result_min distributed_scene::intersect_min_result(const geometry::ray& ray) const {
+		std::stack<entity*> stack;
+		for (const auto& [_, entity] : m_entities) {
+			stack.push(entity.get());
+		}
+
+		model::intersection nearest_hit;
+
+		while (!stack.empty()) {
+			entity* entity = stack.top();
+			stack.pop();
+
+			for (const auto& child : entity->get_children())
+				stack.push(child.get());
+
+			if (auto model = entity->get_component<scene::model>()) {
+				auto hit = model->intersect(ray);
+
+				if (!hit.has_hit())
+					continue;
+
+				if (hit.distance < nearest_hit.distance
+					|| !nearest_hit.has_hit()) {
+					nearest_hit = hit;
+				}
+			}
+		}
+
+		if (!nearest_hit.has_hit())
+			return {false, std::numeric_limits<float>::max()};
+
+		transform transform = nearest_hit.transform;
+
+		const auto& mesh = nearest_hit.surface->mesh;
+		const auto& material = nearest_hit.surface->material;
+
+		uvec3& indices = mesh->triangles[nearest_hit.triangle_index];
+
+		auto& v1 = mesh->vertices[indices.x];
+		auto& v2 = mesh->vertices[indices.y];
+		auto& v3 = mesh->vertices[indices.z];
+
+		fvec3 position = transform * (
+			v1.position * nearest_hit.barycentric.x +
+			v2.position * nearest_hit.barycentric.y +
+			v3.position * nearest_hit.barycentric.z);
+	
+		return {true, nearest_hit.distance, position};
+	}
+
+
     models::intersect_result distributed_scene::intersect(const geometry::ray& ray) const {
         std::stack<entity*> stack;
 		for (const auto& [_, entity] : m_entities) {

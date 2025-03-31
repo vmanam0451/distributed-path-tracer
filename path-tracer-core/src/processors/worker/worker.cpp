@@ -28,64 +28,64 @@ namespace processors {
         auto work = m_worker_info.scene_info.work;
         m_scene.load_scene(m_worker_info.scene_bucket, m_worker_info.scene_root, work, m_gltf_file_path);
 
-        // m_should_terminate = false;
-        // m_completed_rays = 0;
+        m_should_terminate = false;
+        m_completed_rays = 0;
 
-        // generate_rays();
+        generate_rays();
 
-		// pixels.resize(resolution.x);
-		// for (auto& column : pixels)
-		// 	column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
+		pixels.resize(resolution.x);
+		for (auto& column : pixels)
+			column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
 
-        // std::thread object_intersection_thread(&worker::process_object_intersections, this);
-        // std::thread object_intersection_result_thread(&worker::process_object_intersection_results, this);
+        std::thread object_intersection_thread(&worker::process_object_intersections, this);
+        std::thread object_intersection_result_thread(&worker::process_object_intersection_results, this);
 
-        // std::thread direct_lighting_intersection_thread(&worker::process_direct_lighting_intersections, this);
-        // std::thread direct_lighting_intersection_result_thread(&worker::process_direct_lighting_intersection_results, this);
+        std::thread direct_lighting_intersection_thread(&worker::process_direct_lighting_intersections, this);
+        std::thread direct_lighting_intersection_result_thread(&worker::process_direct_lighting_intersection_results, this);
 
-        // std::thread shading_thread(&worker::process_shading, this);
-        // std::thread accumulation_thread(&worker::process_accumulation, this);
+        std::thread shading_thread(&worker::process_shading, this);
+        std::thread accumulation_thread(&worker::process_accumulation, this);
 
-        // std::thread monitor_thread([&]() {
-        //     uint32_t total_rays = resolution.x * resolution.y * sample_count;
-        //     while (m_completed_rays < total_rays) {
-        //         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        //     }
+        std::thread monitor_thread([&]() {
+            uint32_t total_rays = resolution.x * resolution.y * sample_count;
+            while (m_completed_rays < total_rays) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
             
-        //     m_should_terminate = true;
-        //     spdlog::info("All rays processed, signaling termination");
-        // });
+            m_should_terminate = true;
+            spdlog::info("All rays processed, signaling termination");
+        });
 
-        // std::thread debug_thread([&]() {
-        //     while (!m_should_terminate) {
-        //         spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, DIRECT_RESULT={}, INDIRECT={}, COMPLETED={}",
-        //             m_object_intersection_queue.size_approx(),
-        //             m_object_intersection_result_queue.size_approx(),
-        //             m_direct_lighting_intersection_queue.size_approx(),
-        //             m_direct_lighting_intersection_result_queue.size_approx(),
-        //             m_shading_queue.size_approx(),
-        //             m_accumulate_queue.size_approx());
-        //         spdlog::info("Completed Rays: {}", m_completed_rays.load());
-        //         std::this_thread::sleep_for(std::chrono::seconds(1));
-        //     }
-        // });
+        std::thread debug_thread([&]() {
+            while (!m_should_terminate) {
+                spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, DIRECT_RESULT={}, INDIRECT={}, COMPLETED={}",
+                    m_object_intersection_queue.size_approx(),
+                    m_object_intersection_result_queue.size_approx(),
+                    m_direct_lighting_intersection_queue.size_approx(),
+                    m_direct_lighting_intersection_result_queue.size_approx(),
+                    m_shading_queue.size_approx(),
+                    m_accumulate_queue.size_approx());
+                spdlog::info("Completed Rays: {}", m_completed_rays.load());
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        });
     
-        // debug_thread.join();
+        debug_thread.join();
 
-        // object_intersection_thread.join();
-        // object_intersection_result_thread.join();
+        object_intersection_thread.join();
+        object_intersection_result_thread.join();
 
-        // direct_lighting_intersection_thread.join();
-        // direct_lighting_intersection_result_thread.join();
+        direct_lighting_intersection_thread.join();
+        direct_lighting_intersection_result_thread.join();
 
-        // shading_thread.join();
-        // accumulation_thread.join();
+        shading_thread.join();
+        accumulation_thread.join();
 
-        // monitor_thread.join();
+        monitor_thread.join();
          
-        // spdlog::info("Generating Image...");
+        spdlog::info("Generating Image...");
 
-	    auto png_data = render();
+	    auto png_data = generate_final_image();
         std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
         spdlog::info("Uploading image...");
         cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
@@ -119,9 +119,10 @@ namespace processors {
                     cloud_ray.uuid = uuid;
                     cloud_ray.ray = ray;
                     cloud_ray.color = fvec4::zero;
+                    cloud_ray.alpha = transparent_background ? 0.0f : 1.0f;
                     cloud_ray.scale = fvec3::one;
                     cloud_ray.bounce = bounce_count;
-                    cloud_ray.stage = models::ray_stage::INTERSECT;
+                    cloud_ray.stage = models::ray_stage::SHADING;
 
                     map_ray_stage_to_queue(cloud_ray);
                 }

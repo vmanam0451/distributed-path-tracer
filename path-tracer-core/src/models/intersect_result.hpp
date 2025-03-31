@@ -5,6 +5,12 @@
 #include <path_tracer/core/material.hpp>
 
 namespace models {
+    struct intersect_result_min {
+        bool hit;
+        float distance;
+        math::fvec3 position;
+    };
+    
     struct intersect_result {
         bool hit;
 		std::shared_ptr<core::material> material;

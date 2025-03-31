@@ -49,7 +49,8 @@ namespace models {
         float object_intersect_distance; 
         bool direct_light_intersect_result;
 
-        math::fvec4 color;
+        math::fvec3 color;
+        float alpha;
         math::fvec3 scale;
 
         uint8_t bounce;

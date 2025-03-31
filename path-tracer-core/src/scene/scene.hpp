@@ -17,6 +17,7 @@ namespace cloud {
     class distributed_scene {
     public:
         void load_scene(const std::string& scene_s3_bucket, const std::string& scene_s3_root, const std::map<mesh_name, primitives>& scene_work, const std::filesystem::path& gltf_path);
+        models::intersect_result_min intersect_min_result(const geometry::ray& ray) const;
         models::intersect_result intersect(const geometry::ray& ray) const;
 
     private:
