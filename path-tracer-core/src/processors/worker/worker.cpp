@@ -37,13 +37,11 @@ namespace processors {
 		for (auto& column : pixels)
 			column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
 
-        std::thread object_intersection_thread(&worker::process_object_intersections, this);
-        std::thread object_intersection_result_thread(&worker::process_object_intersection_results, this);
-
-        std::thread direct_lighting_intersection_thread(&worker::process_direct_lighting_intersections, this);
-        std::thread direct_lighting_intersection_result_thread(&worker::process_direct_lighting_intersection_results, this);
-
-        std::thread shading_thread(&worker::process_shading, this);
+        std::vector<std::thread> shading_threads;
+        for (int i = 0; i < 4; i++) {
+            shading_threads.push_back(std::thread(&worker::process_shading, this));
+        }
+        
         std::thread accumulation_thread(&worker::process_accumulation, this);
 
         std::thread monitor_thread([&]() {
@@ -72,16 +70,10 @@ namespace processors {
     
         debug_thread.join();
 
-        object_intersection_thread.join();
-        object_intersection_result_thread.join();
-
-        direct_lighting_intersection_thread.join();
-        direct_lighting_intersection_result_thread.join();
-
-        shading_thread.join();
         accumulation_thread.join();
-
         monitor_thread.join();
+
+        for (int i = 0; i < shading_threads.size(); i++) shading_threads[i].join();
          
         spdlog::info("Generating Image...");
 
@@ -89,7 +81,13 @@ namespace processors {
         std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
         spdlog::info("Uploading image...");
         cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
+
+        png_data = render();
+        input = png_data;
+        spdlog::info("Uploading image...");
+        cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test2.png", input);
     }
+
 
     void worker::download_gltf_file() {
         std::string s3_gltf_file{m_worker_info.scene_root + "scene.gltf"};
@@ -107,7 +105,12 @@ namespace processors {
                     
                     uvec2 pixel(x, y);
 
-					fvec2 aa_offset = fvec2(rand(), rand());
+					fvec2 aa_offset;
+                    if (sample == 0 && !transparent_background) {
+                        aa_offset = fvec2(0, 0); 
+                    } else {
+                        aa_offset = fvec2(core::rand(), core::rand());
+                    }
 
 					fvec2 ndc = ((fvec2(pixel) + aa_offset) / resolution) * 2 - fvec2::one;
 					ndc.y = -ndc.y;
@@ -183,12 +186,7 @@ namespace processors {
 		todo.reserve(resolution.y);
 
 		// Claiming pixels by opaque samples is needed for proper transparent background blending
-		struct pixel {
-			math::fvec3 color;
-			float alpha;
-			bool claimed;
-		};
-
+		
 		std::vector<std::vector<pixel>> pixels;
 		pixels.resize(resolution.x);
 		for (auto& column : pixels)
@@ -197,7 +195,7 @@ namespace processors {
 		auto img = std::make_shared<image::image>(resolution, 4, false, true);
 
 		for (uint32_t sample = 0; sample < sample_count; sample++) {
-			std::cout << "Drawing sample " << sample + 1 << " out of " << sample_count << '.' << std::endl;
+			spdlog::info("Drawing sample {} out of {}", sample + 1, sample_count);
 
 			for (uint32_t y = 0; y < resolution.y; y++) {
 				todo.push_back(pool.submit([&, y](uint32_t) {
@@ -207,8 +205,7 @@ namespace processors {
 						// Do not offset the first sample so we can get a consistent alpha mask for smart blending
 						fvec2 aa_offset = fvec2(core::rand(), core::rand());
 
-						fvec2 ndc = ((fvec2(pixel) + aa_offset) /
-							resolution) * 2 - fvec2::one;
+						fvec2 ndc = ((fvec2(pixel) + aa_offset) / resolution) * 2 - fvec2::one;
 						ndc.y = -ndc.y;
 						float ratio = static_cast<float>(resolution.x) / resolution.y;
 
@@ -252,8 +249,6 @@ namespace processors {
 			todo.clear();
 
 			if (sample != 0 && sample % 5 == 0 || sample == sample_count - 1) {
-				std::cout << "Saving..." << std::endl;
-
 				for (uint32_t y = 0; y < resolution.y; y++) {
 					for (uint32_t x = 0; x < resolution.x; x++) {
 						fvec3 color = tonemap_approx_aces(pixels[x][y].color);

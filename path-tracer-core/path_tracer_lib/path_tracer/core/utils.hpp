@@ -6,8 +6,8 @@ using namespace math;
 
 namespace core {
     static float rand() {
-		static std::mt19937 rng{std::random_device{}()};
-		static std::uniform_real_distribution<float> dist(0, 1);
+		thread_local std::mt19937 rng{std::random_device{}()};
+        thread_local std::uniform_real_distribution<float> dist(0, 1);
 
 		return dist(rng);
 	}

@@ -16,6 +16,7 @@ namespace processors {
 
             m_completed_rays++;
 
+
             std::vector<std::string> parts;
             std::stringstream ss(ray.uuid);
             std::string part;
@@ -27,6 +28,7 @@ namespace processors {
             uint32_t x = std::stoi(parts[0]);
             uint32_t y = std::stoi(parts[1]);
 
+            
             fvec4 data = fvec4(ray.color, ray.alpha);
         
             uint32_t sample = pixels[x][y].sample;
@@ -46,14 +48,17 @@ namespace processors {
                   continue;
                 } 
                 else if(data.w < 0.5) {
+                  pixels[x][y].sample = sample + 1;
                   continue;
                 }
             }
 
             pixels[x][y].color = pixels[x][y].color * sample + fvec3(data);
             pixels[x][y].color /= sample + 1;
+
             pixels[x][y].alpha = pixels[x][y].alpha * sample + data.w; 
             pixels[x][y].alpha /= sample + 1;
+
             pixels[x][y].sample = sample + 1;
         }
     }
