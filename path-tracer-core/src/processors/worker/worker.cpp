@@ -81,11 +81,6 @@ namespace processors {
         std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
         spdlog::info("Uploading image...");
         cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
-
-        png_data = render();
-        input = png_data;
-        spdlog::info("Uploading image...");
-        cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test2.png", input);
     }
 
 
