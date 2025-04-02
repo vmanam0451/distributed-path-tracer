@@ -38,6 +38,8 @@ namespace cloud {
 			return {false, std::numeric_limits<float>::max()};
 
 		transform transform = nearest_hit.transform;
+		fmat3 normal_matrix = transpose(inverse(nearest_hit.transform.basis));
+
 
 		const auto& mesh = nearest_hit.surface->mesh;
 		const auto& material = nearest_hit.surface->material;
@@ -52,8 +54,28 @@ namespace cloud {
 			v1.position * nearest_hit.barycentric.x +
 			v2.position * nearest_hit.barycentric.y +
 			v3.position * nearest_hit.barycentric.z);
+
+		fvec2 tex_coord =
+			v1.tex_coord * nearest_hit.barycentric.x +
+			v2.tex_coord * nearest_hit.barycentric.y +
+			v3.tex_coord * nearest_hit.barycentric.z;
+
+		fvec3 normal = normalize(normal_matrix * (
+			v1.normal * nearest_hit.barycentric.x +
+			v2.normal * nearest_hit.barycentric.y +
+			v3.normal * nearest_hit.barycentric.z));
+
+		fvec3 tangent = normalize(normal_matrix * (
+			v1.tangent * nearest_hit.barycentric.x +
+			v2.tangent * nearest_hit.barycentric.y +
+			v3.tangent * nearest_hit.barycentric.z));
+
+		vec3 binormal = cross(normal, tangent);
+		fmat3 tbn(tangent, binormal, normal);
+
+		normal =  tbn * material->get_normal(tex_coord);
 	
-		return {true, nearest_hit.distance, position};
+		return {true, nearest_hit.distance, position, normal};
 	}
 
 

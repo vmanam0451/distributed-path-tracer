@@ -9,6 +9,7 @@ namespace models {
         bool hit;
         float distance;
         math::fvec3 position;
+        math::fvec3 normal;
     };
     
     struct intersect_result {
@@ -22,7 +23,7 @@ namespace models {
 		math::fvec3 get_normal() const {
             using namespace math;
             vec3 binormal = cross(normal, tangent);
-		    fmat3 tbn(tangent, binormal, normal);
+		    math::fmat3 tbn(tangent, binormal, normal);
 
 		    return tbn * material->get_normal(tex_coord);
         }

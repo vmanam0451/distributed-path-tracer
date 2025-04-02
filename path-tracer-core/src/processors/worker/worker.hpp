@@ -18,10 +18,10 @@ namespace processors {
         ~worker() override;
     public:
         math::uvec2 resolution = math::fvec2(640, 480);
-        uint32_t sample_count = 20;
+        uint32_t sample_count = 50;
 		math::fvec3 environment_factor = math::fvec3::one;
 		bool transparent_background = false;
-        uint8_t bounce_count = 4;
+        uint8_t bounce_count = 10;
 
     private:
         void download_gltf_file();
@@ -84,7 +84,7 @@ namespace processors {
 
         moodycamel::ConcurrentQueue<models::cloud_ray> m_accumulate_queue;
 
-        std::map<std::string, std::pair<int, models::cloud_ray>> m_object_intersection_results;
-        std::map<std::string, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
+        std::map<uint64_t, std::pair<int, models::cloud_ray>> m_object_intersection_results;
+        std::map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
     };
 }

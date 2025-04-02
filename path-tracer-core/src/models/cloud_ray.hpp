@@ -41,10 +41,10 @@ namespace models {
     */
     
     struct cloud_ray {
-        std::string uuid;
+        uint64_t uuid;
 
         geometry::ray ray;
-        geometry::ray direct_light_ray;
+        std::optional<geometry::ray> direct_light_ray;
         
         float object_intersect_distance; 
         bool direct_light_intersect_result;

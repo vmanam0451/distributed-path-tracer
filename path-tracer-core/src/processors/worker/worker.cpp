@@ -25,11 +25,17 @@ namespace processors {
     void worker::run() {
         this->download_gltf_file();
 
-        auto work = m_worker_info.scene_info.work;
+        auto& info = m_worker_info;
+        auto& work = m_worker_info.scene_info.work;
+
         m_scene.load_scene(m_worker_info.scene_bucket, m_worker_info.scene_root, work, m_gltf_file_path);
 
         m_should_terminate = false;
         m_completed_rays = 0;
+
+        this->resolution = fvec2(info.X, info.Y);
+        this->sample_count = info.samples;
+        this->bounce_count = info.bounces;
 
         generate_rays();
 
@@ -37,14 +43,31 @@ namespace processors {
 		for (auto& column : pixels)
 			column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
 
-        std::vector<std::thread> shading_threads;
-        for (int i = 0; i < 4; i++) {
-            shading_threads.push_back(std::thread(&worker::process_shading, this));
-        }
-        
-        std::thread accumulation_thread(&worker::process_accumulation, this);
+        unsigned int hardware_threads = std::thread::hardware_concurrency();
 
-        std::thread monitor_thread([&]() {
+        unsigned int available_threads = hardware_threads - 4; // 1 for main, 1 for accumulation, 2 for debug & monitor
+        
+        unsigned int shading_threads = std::ceil(available_threads * .4);
+
+        unsigned int object_intersection_threads = std::ceil(available_threads * .15);
+        unsigned int direct_lighting_intersection_threads = std::ceil(available_threads * .15);
+
+        unsigned int object_intersection_result_threads = std::ceil(available_threads * .15);
+        unsigned int direct_lighting_intersection_result_threads = std::ceil(available_threads * .15);
+
+        std::vector<std::thread> threads;
+
+        for (int i = 0; i < object_intersection_threads; i++) threads.push_back(std::thread(&worker::process_object_intersections, this));
+        for (int i = 0; i < object_intersection_result_threads; i++) threads.push_back(std::thread(&worker::process_object_intersection_results, this));
+
+        for (int i = 0; i < direct_lighting_intersection_threads; i++) threads.push_back(std::thread(&worker::process_direct_lighting_intersections, this));
+        for (int i = 0; i < direct_lighting_intersection_result_threads; i++) threads.push_back(std::thread(&worker::process_direct_lighting_intersection_results, this));
+
+        for (int i = 0; i < shading_threads; i++) threads.push_back(std::thread(&worker::process_shading, this));
+
+        threads.push_back(std::thread(&worker::process_accumulation, this));
+
+        threads.push_back(std::thread(([&]() {
             uint32_t total_rays = resolution.x * resolution.y * sample_count;
             while (m_completed_rays < total_rays) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -52,9 +75,9 @@ namespace processors {
             
             m_should_terminate = true;
             spdlog::info("All rays processed, signaling termination");
-        });
+        })));
 
-        std::thread debug_thread([&]() {
+        threads.push_back(std::thread([&]() {
             while (!m_should_terminate) {
                 spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, DIRECT_RESULT={}, INDIRECT={}, COMPLETED={}",
                     m_object_intersection_queue.size_approx(),
@@ -66,15 +89,13 @@ namespace processors {
                 spdlog::info("Completed Rays: {}", m_completed_rays.load());
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
-        });
-    
-        debug_thread.join();
+        }));
 
-        accumulation_thread.join();
-        monitor_thread.join();
+        spdlog::info("Hardware Threads {} Total Threads {},", hardware_threads, threads.size());
+        
+        for (auto& thread : threads) thread.join();
 
-        for (int i = 0; i < shading_threads.size(); i++) shading_threads[i].join();
-         
+        spdlog::info("All threads have completed execution.");
         spdlog::info("Generating Image...");
 
 	    auto png_data = generate_final_image();
@@ -96,7 +117,7 @@ namespace processors {
         for(uint32_t x = 0; x < resolution.x; x++) {
             for(uint32_t y = 0; y < resolution.y; y++) {
                 for(uint32_t sample = 0; sample < sample_count; sample++) {
-                    std::string uuid = fmt::format("{}_{}_{}", x, y, sample);
+                    uint64_t uuid = ((uint64_t)x << 40) | ((uint64_t)y << 20) | sample;
                     
                     uvec2 pixel(x, y);
 
@@ -117,10 +138,9 @@ namespace processors {
                     cloud_ray.uuid = uuid;
                     cloud_ray.ray = ray;
                     cloud_ray.color = fvec4::zero;
-                    cloud_ray.alpha = transparent_background ? 0.0f : 1.0f;
                     cloud_ray.scale = fvec3::one;
                     cloud_ray.bounce = bounce_count;
-                    cloud_ray.stage = models::ray_stage::SHADING;
+                    cloud_ray.stage = models::ray_stage::INTERSECT;
 
                     map_ray_stage_to_queue(cloud_ray);
                 }

@@ -35,5 +35,10 @@
     "worker_id": "1",
     "sqs_queue_arn": "",
     "sns_topic_arn": "",
-    "num_workers": 1
+    "num_workers": 1,
+
+    "samples": 50,
+    "bounces": 10,
+    "X": 640,
+    "Y": 480
 }

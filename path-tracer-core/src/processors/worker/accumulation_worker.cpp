@@ -16,19 +16,9 @@ namespace processors {
 
             m_completed_rays++;
 
+            uint32_t x = (ray.uuid >> 40) & 0xFFFFF;  
+            uint32_t y = (ray.uuid >> 20) & 0xFFFFF;
 
-            std::vector<std::string> parts;
-            std::stringstream ss(ray.uuid);
-            std::string part;
-
-            while (std::getline(ss, part, '_')) {
-                parts.push_back(part);
-            }
-
-            uint32_t x = std::stoi(parts[0]);
-            uint32_t y = std::stoi(parts[1]);
-
-            
             fvec4 data = fvec4(ray.color, ray.alpha);
         
             uint32_t sample = pixels[x][y].sample;
