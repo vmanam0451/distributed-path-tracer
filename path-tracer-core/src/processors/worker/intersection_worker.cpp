@@ -23,7 +23,7 @@ namespace processors {
                 auto sun_light = m_scene.m_sun_light;
                 if (sun_light) {
                     fvec3 direct_incoming = sun_light->get_global_transform().basis * fvec3::backward;
-			        direct_incoming = util::rand_cone_vec(rand(), math::cos(rand() * sun_light->get_component<scene::sun_light>()->angular_radius),
+			        direct_incoming = util::rand_cone_vec(core::rand(), math::cos(core::rand() * sun_light->get_component<scene::sun_light>()->angular_radius),
 			                                      direct_incoming);
 
                     geometry::ray direct_ray(
