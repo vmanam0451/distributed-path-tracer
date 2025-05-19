@@ -39,6 +39,9 @@ namespace processors {
                 }
             }
 
+            // Add entry to ray in intersection map here. SQS, on rare occassions, messages are delivered "at least once". Have to create an idempotent system.
+            // By adding to the map here, can remove the check in the results method. If results worker gets an id not in map, just drop it.
+
             m_object_intersection_result_queue.enqueue(ray);
         }
     }
