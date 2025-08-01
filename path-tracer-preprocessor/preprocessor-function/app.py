@@ -1,4 +1,5 @@
 import json
+import math
 import string
 import traceback
 import boto3
@@ -8,6 +9,37 @@ import yaml
 import os
 
 from preprocess.preprocessor import Preprocessor
+
+def split_2d_grid_rectangular(width, height, num_workers):
+    cols = int(math.ceil(math.sqrt(num_workers)))
+    rows = int(math.ceil(num_workers / cols))
+    
+    workers = {}
+    worker_id = 0
+    
+    for row in range(rows):
+        if worker_id >= num_workers:
+            break
+            
+        for col in range(cols):
+            if worker_id >= num_workers:
+                break
+                
+            x_start = (width * col) // cols
+            x_end = (width * (col + 1)) // cols - 1
+            y_start = (height * row) // rows
+            y_end = (height * (row + 1)) // rows - 1
+            
+            workers[worker_id] = {
+                "minX": x_start,
+                "maxX": x_end,
+                "minY": y_start,
+                "maxY": y_end
+            }
+            
+            worker_id += 1
+    
+    return workers
 
 def create_topic(sns_client, topic_name: str):
     try:
@@ -81,6 +113,10 @@ def lambda_handler(event, context):
         scene_key = function_input['scene_key']
         scene_name = function_input['scene_name']
         num_workers = function_input['num_workers']
+        samples = function_input.get('samples', 50)
+        bounces = function_input.get('bounces', 5)
+        X = function_input.get('X', 640)
+        Y = function_input.get('Y', 480)
     
         ENVIRONMENT = os.environ.get('ENV', 'local')
         print("ENVIRONMENT: {}".format(ENVIRONMENT))
@@ -114,7 +150,8 @@ def lambda_handler(event, context):
             print("Created topic and queues")
     
         worker_infos = {}
-    
+        sub_grid = split_2d_grid_rectangular(X, Y, num_workers)
+
         for worker_id in split_scene['split_work'].keys():
             worker_info = {
                 "scene_info": split_scene['split_work'][worker_id],
@@ -123,7 +160,13 @@ def lambda_handler(event, context):
                 "worker_id": str(worker_id),
                 "sqs_queue_arn": worker_queues.get(worker_id, ""),
                 "sns_topic_arn": topic_arn,
-                "num_workers": len(split_scene['split_work'].keys())
+                "num_workers": len(split_scene['split_work'].keys()),
+                "samples": samples,
+                "bounces": bounces,
+                "min_x": sub_grid[worker_id]["minX"],
+                "max_x": sub_grid[worker_id]["maxX"],
+                "min_y": sub_grid[worker_id]["minY"],
+                "max_y": sub_grid[worker_id]["maxY"]
             }
         
             worker_infos[worker_id] = worker_info

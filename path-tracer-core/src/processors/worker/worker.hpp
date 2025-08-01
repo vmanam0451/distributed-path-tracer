@@ -46,6 +46,9 @@ class worker : public application
     void calculate_object_intersection(models::cloud_ray &ray);
     void calculate_direct_lighting_intersection(models::cloud_ray &ray);
 
+    void poll_sqs_queue();
+    void send_ray_to_sns(const models::cloud_ray &ray);
+
     std::vector<uint8_t> render() const;
     math::fvec4 trace_iter(uint8_t initial_bounce, const geometry::ray &initial_ray) const;
 

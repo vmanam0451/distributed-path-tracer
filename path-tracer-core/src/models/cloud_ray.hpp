@@ -32,6 +32,12 @@ enum ray_stage
     ACCUMULATE
 };
 
+enum ray_type
+{
+    CALCULATE,
+    RESOLVE
+};
+
 // TODO: Improve memory mangement
 /*
     Don't store intersect_result directly.
@@ -44,6 +50,7 @@ enum ray_stage
 
 struct cloud_ray
 {
+    std::string worker_id;
     uint64_t uuid;
 
     geometry::ray ray;
@@ -58,6 +65,7 @@ struct cloud_ray
 
     uint8_t bounce;
     ray_stage stage;
+    ray_type type;
 };
 
 inline void to_json(nlohmann::json &j, const cloud_ray &r)
@@ -81,6 +89,7 @@ inline void to_json(nlohmann::json &j, const cloud_ray &r)
     j["scale"] = r.scale;
     j["bounce"] = r.bounce;
     j["stage"] = r.stage;
+    j["type"] = r.type;
 }
 
 inline void from_json(const nlohmann::json &j, cloud_ray &r)
@@ -104,5 +113,6 @@ inline void from_json(const nlohmann::json &j, cloud_ray &r)
     j.at("scale").get_to(r.scale);
     j.at("bounce").get_to(r.bounce);
     j.at("stage").get_to(r.stage);
+    j.at("type").get_to(r.type);
 }
 } // namespace models
