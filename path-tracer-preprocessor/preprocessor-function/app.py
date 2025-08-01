@@ -132,6 +132,7 @@ def lambda_handler(event, context):
             if ENVIRONMENT != 'local':
                 print("Invoking Path Trace Function for worker id: {}".format(worker_id))
                 lambda_client = boto3.client('lambda',)
+                # TODO Override MemorySize
                 lambda_client.invoke(
                     FunctionName="distributed-path-tracer-worker", # specified in path-tracer.yaml
                     InvocationType='Event',
