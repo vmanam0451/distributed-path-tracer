@@ -20,6 +20,29 @@ endif()
 message(STATUS "Building Path Tracer...")
 project ("distributed-path-tracer")
 
+find_program(CLANG_FORMAT_EXE clang-format)
+if(CLANG_FORMAT_EXE)
+  message(STATUS "clang-format found: ${CLANG_FORMAT_EXE}")
+  
+  file(GLOB_RECURSE ALL_SOURCE_FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+  )
+  
+  add_custom_target(
+    format
+    COMMAND ${CLANG_FORMAT_EXE} -style=file -i ${ALL_SOURCE_FILES}
+    COMMENT "Running clang-format to format all source files"
+    VERBATIM
+  )
+  
+  set(HAS_FORMAT_TARGET TRUE)
+else()
+  message(WARNING "clang-format not found. Code formatting target will not be available.")
+  set(HAS_FORMAT_TARGET FALSE)
+endif()
+
 add_subdirectory("${CMAKE_SOURCE_DIR}/third_party/stb")
 add_subdirectory("${CMAKE_SOURCE_DIR}/third_party/cgltf")
 add_subdirectory("${CMAKE_SOURCE_DIR}/path_tracer_lib")
@@ -43,6 +66,11 @@ add_executable (${TARGET} ${SRC})
 set_target_properties(${TARGET} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(${TARGET} path_tracer_lib spdlog::spdlog_header_only nlohmann_json::nlohmann_json AWS::aws-lambda-runtime unofficial::concurrentqueue::concurrentqueue ${AWSSDK_LINK_LIBRARIES})
 target_precompile_headers(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/pch.hpp")
+
+if(DEFINED HAS_FORMAT_TARGET AND HAS_FORMAT_TARGET)
+  add_dependencies(${TARGET} format)
+  message(STATUS "Format will run automatically when building the target")
+endif()
 
 aws_lambda_package_target(${TARGET})
 
