@@ -2,8 +2,10 @@
 #include <path_tracer/core/utils.hpp>
 #include <thread>
 
+#include "cloud/messaging.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/intersect_result.hpp"
+#include "models/messaging.hpp"
 #include "path_tracer/util/rand_cone_vec.hpp"
 #include "worker.hpp"
 
@@ -70,6 +72,10 @@ void worker::process_object_intersections()
         // method. If results worker gets an id not in map, just drop it.
 
         m_object_intersection_result_queue.enqueue(ray);
+        m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+
+        ray.type = models::ray_type::CALCULATE;
+        cloud::sns_send(m_worker_info.sns_topic_arn, models::WORKERS_ID, ray);
     }
 }
 
@@ -87,6 +93,10 @@ void worker::process_direct_lighting_intersections()
 
         calculate_direct_lighting_intersection(ray);
         m_direct_lighting_intersection_result_queue.enqueue(ray);
+        m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+
+        ray.type = models::ray_type::CALCULATE;
+        cloud::sns_send(m_worker_info.sns_topic_arn, models::WORKERS_ID, ray);
     }
 }
 
@@ -102,9 +112,9 @@ void worker::process_object_intersection_results()
             continue;
         }
 
-        if (!m_object_intersection_results.contains(ray.uuid))
+        if (m_object_intersection_results.find(ray.uuid) == m_object_intersection_results.end())
         {
-            m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+            continue;
         }
 
         auto results = m_object_intersection_results[ray.uuid];
@@ -143,7 +153,13 @@ void worker::process_object_intersection_results()
                     best_ray.stage = models::ray_stage::SHADING;
                 }
             }
-            map_ray_stage_to_queue(best_ray);
+            if (best_ray.worker_id == m_worker_info.worker_id) {
+                map_ray_stage_to_queue(best_ray);
+            }
+            else {
+                best_ray.type = models::ray_type::OWN;
+                cloud::sns_send(m_worker_info.sns_topic_arn, best_ray.worker_id, best_ray);
+            }
         }
     }
 }
@@ -160,9 +176,9 @@ void worker::process_direct_lighting_intersection_results()
             continue;
         }
 
-        if (!m_direct_lighting_intersection_results.contains(ray.uuid))
+        if (m_direct_lighting_intersection_results.find(ray.uuid) == m_direct_lighting_intersection_results.end())
         {
-            m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+            continue;
         }
 
         auto results = m_direct_lighting_intersection_results[ray.uuid];

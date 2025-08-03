@@ -35,7 +35,8 @@ enum ray_stage
 enum ray_type
 {
     CALCULATE,
-    RESOLVE
+    RESOLVE,
+    OWN
 };
 
 // TODO: Improve memory mangement

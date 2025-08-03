@@ -94,13 +94,13 @@ def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: Lis
     try:
         worker_queues = {}
     
-        master_queue_arn = create_and_subscribe_worker_queue('master')
-        worker_queues['master'] = master_queue_arn
-          
+        master_queue_url = create_and_subscribe_worker_queue('master')
+        worker_queues['master'] = master_queue_url
+
         for worker_id in worker_ids:
-            queue_arn = create_and_subscribe_worker_queue(str(worker_id))
-            worker_queues[worker_id] = queue_arn
-                    
+            queue_url = create_and_subscribe_worker_queue(str(worker_id))
+            worker_queues[worker_id] = queue_url
+
         return worker_queues
     
     except Exception as e:
@@ -158,7 +158,7 @@ def lambda_handler(event, context):
                 "scene_bucket": scene_bucket,
                 "scene_root": scene_key,
                 "worker_id": str(worker_id),
-                "sqs_queue_arn": worker_queues.get(worker_id, ""),
+                "sqs_queue_url": worker_queues.get(worker_id, ""),
                 "sns_topic_arn": topic_arn,
                 "num_workers": len(split_scene['split_work'].keys()),
                 "samples": samples,

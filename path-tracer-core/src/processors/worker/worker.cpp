@@ -9,8 +9,10 @@
 #include <path_tracer/math/vec3.hpp>
 #include <path_tracer/util/thread_pool.hpp>
 
+#include "cloud/messaging.hpp"
 #include "cloud/s3.hpp"
 #include "models/cloud_ray.hpp"
+#include "models/messaging.hpp"
 #include "path_tracer/util/rand_cone_vec.hpp"
 
 namespace processors
@@ -49,7 +51,7 @@ void worker::run()
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
 
-    unsigned int available_threads = hardware_threads - 4; // 1 for main, 1 for accumulation, 2 for debug & monitor
+    unsigned int available_threads = hardware_threads - 5; // 1 for main, 1 for accumulation, 1 for SQS polling, 2 for debug & monitor
 
     unsigned int shading_threads = std::ceil(available_threads * .4);
 
@@ -99,6 +101,15 @@ void worker::run()
             spdlog::info("Completed Rays: {}", m_completed_rays.load());
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
+    }));
+
+    models::SQSOptions sqs_options;
+    sqs_options.queueUrl = m_worker_info.sqs_queue_url;
+
+    threads.push_back(std::thread([&]() {
+        cloud::sqs_poll(sqs_options, [&](models::cloud_ray &ray) {
+            process_ray_from_queue(ray);
+        });
     }));
 
     spdlog::info("Hardware Threads {} Total Threads {},", hardware_threads, threads.size());
@@ -214,8 +225,49 @@ std::vector<uint8_t> worker::generate_final_image()
     return img->save_to_memory_png();
 }
 
-void worker::poll_sqs_queue()
+void worker::process_ray_from_queue(models::cloud_ray& ray)
 {
+    if (ray.type == models::ray_type::RESOLVE) 
+    {
+        if (ray.stage == models::ray_stage::INTERSECT)
+        {
+            m_object_intersection_result_queue.enqueue(ray);
+        }
+        else if (ray.stage == models::ray_stage::DIRECT_LIGHTING)
+        {
+            m_direct_lighting_intersection_result_queue.enqueue(ray);
+        }
+    }
+    else if (ray.type == models::ray_type::CALCULATE)
+    {
+        if (ray.worker_id == m_worker_info.worker_id)
+        {
+            return;
+        }
+
+        if (ray.stage == models::ray_stage::INTERSECT)
+        {
+            calculate_object_intersection(ray);
+        }
+        else if (ray.stage == models::ray_stage::DIRECT_LIGHTING)
+        {
+            calculate_direct_lighting_intersection(ray);
+        }
+
+        const auto orig_worker = ray.worker_id;
+        ray.worker_id = m_worker_info.worker_id;
+
+        ray.type = models::ray_type::RESOLVE;
+        cloud::sns_send(m_worker_info.sns_topic_arn, orig_worker, ray);
+    }
+    else if (ray.type == models::ray_type::OWN)
+    {
+        map_ray_stage_to_queue(ray);
+    }
+    else
+    {
+        spdlog::error("Unknown ray type: {}", static_cast<int>(ray.type));
+    }
 }
 
 } // namespace processors

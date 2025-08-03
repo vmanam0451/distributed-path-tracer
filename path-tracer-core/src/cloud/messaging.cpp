@@ -8,18 +8,14 @@ namespace cloud
     {
         Aws::SQS::SQSClient sqs_client;
 
-        Aws::SQS::Model::ReceiveMessageRequest receive_request;
-        receive_request.SetQueueUrl(options.queueUrl);
-        receive_request.SetMaxNumberOfMessages(options.maxMessages);
-        receive_request.SetWaitTimeSeconds(options.waitTimeSeconds);
+        while (true)
+        {
+            Aws::SQS::Model::ReceiveMessageRequest receive_request;
+            receive_request.SetQueueUrl(options.queueUrl);
+            receive_request.SetMaxNumberOfMessages(options.maxMessages);
+            receive_request.SetWaitTimeSeconds(options.waitTimeSeconds);
 
-        
-       
-        sqs_client.ReceiveMessageAsync(receive_request, [callback](const Aws::SQS::SQSClient* client,
-                                  const Aws::SQS::Model::ReceiveMessageRequest& request,
-                                  const Aws::SQS::Model::ReceiveMessageOutcome& outcome,
-                                  const std::shared_ptr<const Aws::Client::AsyncCallerContext>& context) {
-
+            auto outcome = sqs_client.ReceiveMessage(receive_request);
             if (outcome.IsSuccess())
             {
                 const auto& messages = outcome.GetResult().GetMessages();
@@ -29,6 +25,11 @@ namespace cloud
                     {
                         auto ray = json::parse(message.GetBody());
                         callback(ray.get<models::cloud_ray>());
+
+                        Aws::SQS::Model::DeleteMessageRequest delete_req;
+                        delete_req.SetQueueUrl(options.queueUrl);
+                        delete_req.SetReceiptHandle(message.GetReceiptHandle());
+                        sqs_client.DeleteMessage(delete_req);
                     }
                     catch (const json::exception& e)
                     {
@@ -36,7 +37,13 @@ namespace cloud
                     }
                 }
             }
-        });
+            else 
+            {
+                spdlog::error("Failed to receive messages from SQS: {}", outcome.GetError().GetMessage());
+            }
+
+            std::this_thread::sleep_for(std::chrono::seconds(options.pollingIntervalSeconds));
+        }
     }
 
     void sns_send(const std::string& topic_arn, const std::string& worker_id, const models::cloud_ray& ray) 
@@ -63,6 +70,5 @@ namespace cloud
         {
             spdlog::info("Message published to SNS topic {} with worker ID {}", topic_arn, worker_id);
         }
-       
     }
 }

@@ -22,7 +22,7 @@ struct worker_info
     std::string scene_bucket;
     std::string scene_root;
     std::string worker_id;
-    std::string sqs_queue_arn;
+    std::string sqs_queue_url;
     std::string sns_topic_arn;
     int num_workers;
 
@@ -33,7 +33,7 @@ struct worker_info
     float max_x;
     float max_y;
 
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(worker_info, scene_info, scene_bucket, scene_root, worker_id, sqs_queue_arn,
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE(worker_info, scene_info, scene_bucket, scene_root, worker_id, sqs_queue_url,
                                    sns_topic_arn, num_workers, samples, bounces, min_x, min_y, max_x, max_y)
 };
 } // namespace models

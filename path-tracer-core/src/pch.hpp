@@ -8,6 +8,7 @@
 #include <aws/sns/SNSClient.h>
 #include <aws/sns/model/PublishRequest.h>
 #include <aws/sqs/SQSClient.h>
+#include <aws/sqs/model/DeleteMessageRequest.h>
 #include <aws/sqs/model/ReceiveMessageRequest.h>
 #include <cgltf/custom_cgltf.h>
 #include <concurrentqueue/concurrentqueue.h>
