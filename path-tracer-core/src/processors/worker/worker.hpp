@@ -41,12 +41,11 @@ class worker : public application
     void process_direct_lighting_intersection_results();
 
     void process_shading();
-    void process_accumulation();
 
     void calculate_object_intersection(models::cloud_ray &ray);
     void calculate_direct_lighting_intersection(models::cloud_ray &ray);
 
-    void process_ray_from_queue(models::cloud_ray& ray);
+    void process_ray_from_queue(models::cloud_ray &ray);
 
     std::vector<uint8_t> render() const;
     math::fvec4 trace_iter(uint8_t initial_bounce, const geometry::ray &initial_ray) const;
@@ -83,7 +82,6 @@ class worker : public application
     std::vector<std::vector<pixel>> pixels;
 
     std::atomic<bool> m_should_terminate;
-    std::atomic<uint32_t> m_completed_rays;
 
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_queue;
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_result_queue;
@@ -92,8 +90,6 @@ class worker : public application
     moodycamel::ConcurrentQueue<models::cloud_ray> m_direct_lighting_intersection_result_queue;
 
     moodycamel::ConcurrentQueue<models::cloud_ray> m_shading_queue;
-
-    moodycamel::ConcurrentQueue<models::cloud_ray> m_accumulate_queue;
 
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_object_intersection_results;
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;

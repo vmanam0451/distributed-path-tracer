@@ -3,7 +3,9 @@
 #include <path_tracer/math/vec3.hpp>
 #include <path_tracer/util/rand_cone_vec.hpp>
 
+#include "cloud/messaging.hpp"
 #include "models/cloud_ray.hpp"
+#include "models/messaging.hpp"
 #include "worker.hpp"
 
 namespace processors
@@ -205,11 +207,18 @@ void worker::process_shading()
 
             ray.bounce -= 1;
             ray.stage = ray.bounce > 0 ? models::ray_stage::INTERSECT : models::ray_stage::ACCUMULATE;
-            map_ray_stage_to_queue(ray);
         }
         else
         {
             ray.stage = models::ray_stage::ACCUMULATE;
+        }
+
+        if (ray.stage == models::ray_stage::ACCUMULATE)
+        {
+            cloud::sns_send(m_worker_info.sns_topic_arn, models::MASTER_ID, ray);
+        }
+        else
+        {
             map_ray_stage_to_queue(ray);
         }
     }

@@ -153,10 +153,12 @@ void worker::process_object_intersection_results()
                     best_ray.stage = models::ray_stage::SHADING;
                 }
             }
-            if (best_ray.worker_id == m_worker_info.worker_id) {
+            if (best_ray.worker_id == m_worker_info.worker_id)
+            {
                 map_ray_stage_to_queue(best_ray);
             }
-            else {
+            else
+            {
                 best_ray.type = models::ray_type::OWN;
                 cloud::sns_send(m_worker_info.sns_topic_arn, best_ray.worker_id, best_ray);
             }

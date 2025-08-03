@@ -171,6 +171,21 @@ def lambda_handler(event, context):
         
             worker_infos[worker_id] = worker_info
         
+        worker_infos['master'] = {
+            "scene_bucket": scene_bucket,
+            "scene_root": scene_key,
+            "worker_id": "master",
+            "sqs_queue_url": worker_queues.get('master', ""),
+            "sns_topic_arn": topic_arn,
+            "num_workers": len(split_scene['split_work'].keys()),
+            "samples": samples,
+            "bounces": bounces,
+            "min_x": 0,
+            "max_x": X,
+            "min_y": 0,
+            "max_y": Y
+        }
+        
         for worker_id, worker_info in worker_infos.items():
             if ENVIRONMENT != 'local':
                 print("Invoking Path Trace Function for worker id: {}".format(worker_id))

@@ -1,6 +1,8 @@
+#include "models/messaging.hpp"
 #include "models/work_info.hpp"
 #include "pch.hpp"
 #include "processors/application.hpp"
+#include "processors/master/master.hpp"
 #include "processors/worker/worker.hpp"
 
 using json = nlohmann::json;
@@ -17,7 +19,10 @@ aws::lambda_runtime::invocation_response my_handler(aws::lambda_runtime::invocat
     const std::string &worker_id = info.worker_id;
     std::unique_ptr<processors::application> app;
 
-    app = std::make_unique<processors::worker>(info);
+    if (worker_id == models::MASTER_ID)
+        app = std::make_unique<processors::master>(info);
+    else
+        app = std::make_unique<processors::worker>(info);
 
     app->run();
     Aws::ShutdownAPI(options);

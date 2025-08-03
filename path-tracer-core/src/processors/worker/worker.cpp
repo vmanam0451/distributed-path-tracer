@@ -37,7 +37,6 @@ void worker::run()
     m_scene.load_scene(m_worker_info.scene_bucket, m_worker_info.scene_root, work, m_gltf_file_path);
 
     m_should_terminate = false;
-    m_completed_rays = 0;
 
     this->resolution = fvec2((info.max_x - info.min_x), (info.max_y - info.min_y));
     this->sample_count = info.samples;
@@ -51,7 +50,7 @@ void worker::run()
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
 
-    unsigned int available_threads = hardware_threads - 5; // 1 for main, 1 for accumulation, 1 for SQS polling, 2 for debug & monitor
+    unsigned int available_threads = hardware_threads - 3; // 1 for main, 1 for SQS polling, 1 for debug & monitor
 
     unsigned int shading_threads = std::ceil(available_threads * .4);
 
@@ -76,29 +75,14 @@ void worker::run()
     for (int i = 0; i < shading_threads; i++)
         threads.push_back(std::thread(&worker::process_shading, this));
 
-    threads.push_back(std::thread(&worker::process_accumulation, this));
-
-    threads.push_back(std::thread(([&]() {
-        uint32_t total_rays = resolution.x * resolution.y * sample_count;
-        while (m_completed_rays < total_rays)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        m_should_terminate = true;
-        spdlog::info("All rays processed, signaling termination");
-    })));
-
     threads.push_back(std::thread([&]() {
         while (!m_should_terminate)
         {
             spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, "
-                         "DIRECT_RESULT={}, INDIRECT={}, COMPLETED={}",
+                         "DIRECT_RESULT={}, INDIRECT={},",
                          m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
                          m_direct_lighting_intersection_queue.size_approx(),
-                         m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx(),
-                         m_accumulate_queue.size_approx());
-            spdlog::info("Completed Rays: {}", m_completed_rays.load());
+                         m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     }));
@@ -107,9 +91,7 @@ void worker::run()
     sqs_options.queueUrl = m_worker_info.sqs_queue_url;
 
     threads.push_back(std::thread([&]() {
-        cloud::sqs_poll(sqs_options, [&](models::cloud_ray &ray) {
-            process_ray_from_queue(ray);
-        });
+        cloud::sqs_poll(sqs_options, m_should_terminate, [&](models::cloud_ray &ray) { process_ray_from_queue(ray); });
     }));
 
     spdlog::info("Hardware Threads {} Total Threads {},", hardware_threads, threads.size());
@@ -193,9 +175,6 @@ void worker::map_ray_stage_to_queue(const models::cloud_ray &ray)
     case models::ray_stage::SHADING:
         m_shading_queue.enqueue(ray);
         break;
-    case models::ray_stage::ACCUMULATE:
-        m_accumulate_queue.enqueue(ray);
-        break;
     default:
         break;
     }
@@ -225,9 +204,9 @@ std::vector<uint8_t> worker::generate_final_image()
     return img->save_to_memory_png();
 }
 
-void worker::process_ray_from_queue(models::cloud_ray& ray)
+void worker::process_ray_from_queue(models::cloud_ray &ray)
 {
-    if (ray.type == models::ray_type::RESOLVE) 
+    if (ray.type == models::ray_type::RESOLVE)
     {
         if (ray.stage == models::ray_stage::INTERSECT)
         {

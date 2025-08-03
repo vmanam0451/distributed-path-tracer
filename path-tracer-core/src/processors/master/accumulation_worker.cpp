@@ -1,10 +1,10 @@
 #include <cstdint>
 
-#include "worker.hpp"
+#include "master.hpp"
 
 namespace processors
 {
-void worker::process_accumulation()
+void master::process_accumulation()
 {
     using namespace core;
     using namespace math;
