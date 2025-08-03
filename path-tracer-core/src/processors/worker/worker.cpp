@@ -44,10 +44,6 @@ void worker::run()
 
     generate_rays();
 
-    pixels.resize(resolution.x);
-    for (auto &column : pixels)
-        column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
-
     unsigned int hardware_threads = std::thread::hardware_concurrency();
 
     unsigned int available_threads = hardware_threads - 3; // 1 for main, 1 for SQS polling, 1 for debug & monitor
@@ -98,14 +94,6 @@ void worker::run()
 
     for (auto &thread : threads)
         thread.join();
-
-    spdlog::info("All threads have completed execution.");
-    spdlog::info("Generating Image...");
-
-    auto png_data = generate_final_image();
-    std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
-    spdlog::info("Uploading image...");
-    cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
 }
 
 void worker::download_gltf_file()
@@ -178,30 +166,6 @@ void worker::map_ray_stage_to_queue(const models::cloud_ray &ray)
     default:
         break;
     }
-}
-
-std::vector<uint8_t> worker::generate_final_image()
-{
-    using namespace math;
-
-    auto img = std::make_shared<image::image>(resolution, 4, false, true);
-
-    for (uint32_t y = 0; y < resolution.y; y++)
-    {
-        for (uint32_t x = 0; x < resolution.x; x++)
-        {
-            fvec3 color = core::tonemap_approx_aces(pixels[x][y].color);
-            float alpha = pixels[x][y].alpha;
-
-            uvec2 pixel(x, y);
-            img->write(pixel, 0, color.x);
-            img->write(pixel, 1, color.y);
-            img->write(pixel, 2, color.z);
-            img->write(pixel, 3, alpha);
-        }
-    }
-
-    return img->save_to_memory_png();
 }
 
 void worker::process_ray_from_queue(models::cloud_ray &ray)

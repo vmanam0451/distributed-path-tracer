@@ -64,22 +64,10 @@ class worker : public application
        scene.intersect inside renderer and make sure that is working
     */
 
-    std::vector<uint8_t> generate_final_image();
-
-  private:
-    struct pixel
-    {
-        math::fvec3 color;
-        float alpha;
-        bool claimed;
-        uint32_t sample;
-    };
-
   private:
     models::worker_info m_worker_info;
     std::filesystem::path m_gltf_file_path;
     cloud::distributed_scene m_scene;
-    std::vector<std::vector<pixel>> pixels;
 
     std::atomic<bool> m_should_terminate;
 
