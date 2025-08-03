@@ -216,9 +216,6 @@ std::vector<uint8_t> worker::generate_final_image()
 
 void worker::poll_sqs_queue()
 {
-
 }
-
-
 
 } // namespace processors
