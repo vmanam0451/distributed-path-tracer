@@ -15,6 +15,7 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
         receive_request.SetQueueUrl(options.queueUrl);
         receive_request.SetMaxNumberOfMessages(options.maxMessages);
         receive_request.SetWaitTimeSeconds(options.waitTimeSeconds);
+        receive_request.AddMessageAttributeNames("All");
 
         auto outcome = sqs_client.ReceiveMessage(receive_request);
         if (outcome.IsSuccess())
@@ -102,7 +103,7 @@ void sns_signal_termination(const std::string &topic_arn, const std::string &wor
     terminate_attr.SetDataType("String");
     terminate_attr.SetStringValue("true");
 
-    publish_request.AddMessageAttributes("terminate", terminate_attr);
+    publish_request.AddMessageAttributes("should_terminate", terminate_attr);
 
     auto outcome = sns_client.Publish(publish_request);
 

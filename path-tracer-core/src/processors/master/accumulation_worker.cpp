@@ -33,7 +33,7 @@ void master::process_accumulation()
             if (data.w > 0.5 && !pixels[x][y].claimed)
             {
                 pixels[x][y].color = fvec3(data);
-                pixels[x][y].alpha = 1 / (sample + 1);
+                pixels[x][y].alpha = 1.0 / (sample + 1);
                 pixels[x][y].claimed = true;
                 pixels[x][y].sample = sample + 1;
                 continue;
