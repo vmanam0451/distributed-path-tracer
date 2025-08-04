@@ -223,6 +223,10 @@ def lambda_handler(event, context):
             worker_infos[worker_id] = worker_info
         
         worker_infos['master'] = {
+            "scene_info": {
+                "work": {},  
+                "total_size": 0.0  
+            },
             "scene_bucket": scene_bucket,
             "scene_root": scene_key,
             "worker_id": "MASTER",
