@@ -5,8 +5,8 @@ s3_bucket = "distributed-path-trace-function-artifacts"
 s3_prefix = "distributed-path-tracer-stack"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
-image_repositories = ["PathTraceFunction=637423391870.dkr.ecr.us-east-1.amazonaws.com/distributed-path-tracer-repo",
-                     "PathTracerPreprocessorFunction=637423391870.dkr.ecr.us-east-1.amazonaws.com/distributed-path-tracer-repo"]
+image_repositories = ["PathTraceFunction=637423391870.dkr.ecr.us-east-1.amazonaws.com/distributed-path-tracer",
+                     "PathTracerPreprocessorFunction=637423391870.dkr.ecr.us-east-1.amazonaws.com/distributed-path-tracer"]
 confirm_changeset = true
 parameter_overrides = "ENV=prod"
 

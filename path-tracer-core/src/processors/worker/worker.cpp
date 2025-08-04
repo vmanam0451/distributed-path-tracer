@@ -38,20 +38,25 @@ void worker::run()
 
     m_should_terminate = false;
 
-    this->resolution = fvec2((info.max_x - info.min_x), (info.max_y - info.min_y));
+    this->resolution = fvec2((info.max_x - info.min_x) + 1, (info.max_y - info.min_y) + 1);
     this->sample_count = info.samples;
     this->bounce_count = info.bounces;
 
     generate_rays();
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
+    spdlog::info("Hardware Threads: {}", hardware_threads);
     unsigned int available_threads = std::max(1u, hardware_threads - 3);
 
     unsigned int shading_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.4)));
-    unsigned int object_intersection_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int direct_lighting_intersection_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int object_intersection_result_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int direct_lighting_intersection_result_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    unsigned int object_intersection_threads =
+        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    unsigned int direct_lighting_intersection_threads =
+        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    unsigned int object_intersection_result_threads =
+        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    unsigned int direct_lighting_intersection_result_threads =
+        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
 
     std::vector<std::thread> threads;
 
@@ -104,9 +109,9 @@ void worker::generate_rays()
 {
     using namespace math;
 
-    for (uint32_t x = m_worker_info.min_x; x < m_worker_info.max_x; x++)
+    for (uint32_t x = m_worker_info.min_x; x <= m_worker_info.max_x; x++)
     {
-        for (uint32_t y = m_worker_info.min_y; y < m_worker_info.max_y; y++)
+        for (uint32_t y = m_worker_info.min_y; y <= m_worker_info.max_y; y++)
         {
             for (uint32_t sample = 0; sample < sample_count; sample++)
             {

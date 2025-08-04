@@ -104,6 +104,7 @@ void sns_signal_termination(const std::string &topic_arn, const std::string &wor
     terminate_attr.SetStringValue("true");
 
     publish_request.AddMessageAttributes("should_terminate", terminate_attr);
+    publish_request.SetMessage("{\"terminate\":true}");
 
     auto outcome = sns_client.Publish(publish_request);
 

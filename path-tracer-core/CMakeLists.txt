@@ -9,7 +9,7 @@ file(CREATE_LINK
   SYMBOLIC
 )
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -75,7 +75,7 @@ endif()
 aws_lambda_package_target(${TARGET})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET ${TARGET} PROPERTY CXX_STANDARD 20)
+  set_property(TARGET ${TARGET} PROPERTY CXX_STANDARD 23)
 endif()
 
 # TODO: Add tests and install targets if needed.

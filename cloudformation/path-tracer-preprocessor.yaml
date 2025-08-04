@@ -30,14 +30,20 @@ Resources:
           Statement:
             - Effect: Allow
               Action:
+                - sns:ListTopics
+              Resource: "*"
+            - Effect: Allow
+              Action:
                 - sns:CreateTopic
                 - sns:Subscribe
+                - sns:ListSubscriptionsByTopic
               Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:*-distributed-scene-topic"
             - Effect: Allow
               Action:
                 - sqs:CreateQueue
                 - sqs:GetQueueAttributes
                 - sqs:SetQueueAttributes
+                - sqs:GetQueueUrl
               Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*-distributed-scene-worker-*"
       FunctionUrlConfig:
         AuthType: NONE
