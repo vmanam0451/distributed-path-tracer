@@ -2,5 +2,9 @@
     "scene_bucket": "distributed-path-tracer", 
     "scene_key": "scenes/sponza-new",
     "scene_name": "sponza-new",
-    "num_workers": 1
+    "num_workers": 2,
+    "samples": 50,
+    "bounces": 10,
+    "X": 640,
+    "Y": 480
 }

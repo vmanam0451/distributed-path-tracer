@@ -45,16 +45,13 @@ void worker::run()
     generate_rays();
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
+    unsigned int available_threads = std::max(1u, hardware_threads - 3);
 
-    unsigned int available_threads = hardware_threads - 3; // 1 for main, 1 for SQS polling, 1 for debug & monitor
-
-    unsigned int shading_threads = std::ceil(available_threads * .4);
-
-    unsigned int object_intersection_threads = std::ceil(available_threads * .15);
-    unsigned int direct_lighting_intersection_threads = std::ceil(available_threads * .15);
-
-    unsigned int object_intersection_result_threads = std::ceil(available_threads * .15);
-    unsigned int direct_lighting_intersection_result_threads = std::ceil(available_threads * .15);
+    unsigned int shading_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.4)));
+    unsigned int object_intersection_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    unsigned int direct_lighting_intersection_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    unsigned int object_intersection_result_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    unsigned int direct_lighting_intersection_result_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
 
     std::vector<std::thread> threads;
 

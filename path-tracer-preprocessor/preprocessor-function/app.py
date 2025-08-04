@@ -174,7 +174,7 @@ def lambda_handler(event, context):
         worker_infos['master'] = {
             "scene_bucket": scene_bucket,
             "scene_root": scene_key,
-            "worker_id": "master",
+            "worker_id": "MASTER",
             "sqs_queue_url": worker_queues.get('master', ""),
             "sns_topic_arn": topic_arn,
             "num_workers": len(split_scene['split_work'].keys()),
