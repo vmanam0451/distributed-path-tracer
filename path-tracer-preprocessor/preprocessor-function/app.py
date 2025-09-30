@@ -167,37 +167,31 @@ def lambda_handler(event, context):
         X = function_input.get('X', 640)
         Y = function_input.get('Y', 480)
     
-        ENVIRONMENT = os.environ.get('ENV', 'local')
-        print("ENVIRONMENT: {}".format(ENVIRONMENT))
-        
         preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key, num_workers=num_workers)    
         split_scene = preprocessor.get_split_scene()
-        print("Completed splitting the scene scene")
+        print("Completed splitting the scene")
         print("Split Scene: {}".format(split_scene))
 
         session = boto3.session.Session()
         AWS_REGION = session.region_name
 
-        topic_arn = ""
-        worker_queues = {}
+        # Always create topics and queues
+        print("Creating topic and queues...")
+        sns_client = session.client(
+            service_name='sns',
+            region_name=AWS_REGION,
+        )
 
-        if ENVIRONMENT != 'local': # TODO: Can create queues in local as well. Can locally invoke PathTraceFunction, and workers can communicate through SNS/SQS
-            print("Creating topic and queues...")
-            sns_client = session.client(
-                service_name='sns',
-                region_name=AWS_REGION,
-            )
+        sqs_client = boto3.client(
+            service_name='sqs',
+            region_name=AWS_REGION,
+        )   
     
-            sqs_client = boto3.client(
-                service_name='sqs',
-                region_name=AWS_REGION,
-            )   
-        
-            sns_response = create_topic(sns_client, '{}-distributed-scene-topic'.format(scene_name))
-            topic_arn = sns_response['TopicArn']
-            worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
+        sns_response = create_topic(sns_client, '{}-distributed-scene-topic'.format(scene_name))
+        topic_arn = sns_response['TopicArn']
+        worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
 
-            print("Created topic and queues")
+        print("Created topic and queues")
     
         worker_infos = {}
         sub_grid = split_2d_grid_rectangular(X, Y, num_workers)
@@ -241,17 +235,19 @@ def lambda_handler(event, context):
             "max_y": Y
         }
         
+        # Launch Fargate tasks for all workers
         for worker_id, worker_info in worker_infos.items():
-            if ENVIRONMENT != 'local':
-                print("Invoking Path Trace Function for worker id: {}".format(worker_id))
-                lambda_client = boto3.client('lambda',)
-                # TODO Override MemorySize
-                lambda_client.invoke(
-                    FunctionName="distributed-path-tracer-worker", # specified in path-tracer.yaml
-                    InvocationType='Event',
-                    Payload=json.dumps(worker_info),
-                )
-                print("Invoked Path Trace Function for worker id: {}".format(worker_id))
+            print(f"Launching Fargate task for worker id: {worker_id}")
+            memory = 4096  # Default memory 4GB
+            cpu = 2048    # Default CPU 2 vCPU
+            
+            # You can adjust resources based on worker role or scene complexity
+            if worker_id == 'master':
+                memory = 8192  # Give master more resources
+                cpu = 4096
+                
+            task_arn = launch_fargate_task(worker_info, memory=memory, cpu=cpu)
+            print(f"Launched Fargate task {task_arn} for worker id: {worker_id}")
 
         output = {
             "worker_infos": worker_infos
@@ -267,3 +263,51 @@ def lambda_handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": traceback.format_exc()}),  
         }   
+    
+def launch_fargate_task(worker_info, memory=4096, cpu=2048):
+    try:
+        cluster_name = os.environ.get('ECS_CLUSTER', 'PathTracerCluster')
+        task_definition = os.environ.get('TASK_DEFINITION')
+        subnet_id = os.environ.get('SUBNET_ID')
+        security_group_id = os.environ.get('SECURITY_GROUP_ID')
+        
+        if not task_definition or not subnet_id or not security_group_id:
+            raise ValueError("Missing required environment variables for task launch")
+            
+        ecs_client = boto3.client('ecs')
+        
+        env_vars = [{
+            'name': 'WORKER_INFO',
+            'value': json.dumps(worker_info)
+        }]
+        
+        response = ecs_client.run_task(
+            cluster=cluster_name,
+            taskDefinition=task_definition,
+            count=1,
+            launchType='FARGATE',
+            networkConfiguration={
+                'awsvpcConfiguration': {
+                    'subnets': [subnet_id],
+                    'securityGroups': [security_group_id],
+                    'assignPublicIp': 'DISABLED'
+                }
+            },
+            overrides={
+                'containerOverrides': [{
+                    'name': 'worker',
+                    'environment': env_vars,
+                    'cpu': cpu,
+                    'memory': str(memory)
+                }]
+            }
+        )
+        
+        task_arn = response['tasks'][0]['taskArn'] if response['tasks'] else None
+        print(f"Launched task {task_arn} for worker {worker_info['worker_id']}")
+        return task_arn
+    
+    except Exception as e:
+        print(f"Error launching Fargate task: {e}")
+        traceback.print_exc()
+        return None

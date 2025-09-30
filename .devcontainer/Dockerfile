@@ -25,3 +25,7 @@ RUN dnf install -y valgrind
 RUN dnf install -y python3.9-pip
 RUN pip install --ignore-installed pipenv
 ENV PIPENV_VENV_IN_PROJECT=1
+
+# Install NPM & CDK
+RUN dnf install -y npm
+RUN npm install -g aws-cdk

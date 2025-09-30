@@ -7,25 +7,26 @@ Globals:
   Function:
     Timeout: 900
 
-Parameters:
-  ENV:
-    Type: String
-
 Resources:
   PathTracerPreprocessorFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
       Architectures:
         - x86_64
       FunctionName: "distributed-path-tracer-preprocessor"
+      Environment:
+        Variables:
+          ENV: prod
+          ECS_CLUSTER: PathTracerCluster-prod
+          TASK_DEFINITION: path-tracer-worker-prod
+          SUBNET_ID: !ImportValue PathTracer-PrivateSubnet-prod
+          SECURITY_GROUP_ID: !ImportValue PathTracer-ECSSecurityGroup-prod
       Policies:
         - S3ReadPolicy:
             BucketName: "distributed-path-tracer"
         - S3WritePolicy:
             BucketName: "distributed-path-tracer"
-        - LambdaInvokePolicy:
-            FunctionName: "distributed-path-tracer-worker"
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -45,14 +46,19 @@ Resources:
                 - sqs:SetQueueAttributes
                 - sqs:GetQueueUrl
               Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*-distributed-scene-worker-*"
+            - Effect: Allow
+              Action:
+                - ecs:RunTask
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource: '*'
       FunctionUrlConfig:
         AuthType: NONE
-      Environment:
-        Variables:
-          ENV: !Ref ENV
       Events:
         Preprocess:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: Api
           Properties:
             Path: /preprocess
             Method: get
