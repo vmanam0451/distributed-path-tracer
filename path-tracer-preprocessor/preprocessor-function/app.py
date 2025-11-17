@@ -235,7 +235,6 @@ def lambda_handler(event, context):
             "max_y": Y
         }
         
-        # Launch Fargate tasks for all workers
         for worker_id, worker_info in worker_infos.items():
             print(f"Launching Fargate task for worker id: {worker_id}")
             memory = 4096  # Default memory 4GB
@@ -243,8 +242,8 @@ def lambda_handler(event, context):
             
             # You can adjust resources based on worker role or scene complexity
             if worker_id == 'master':
-                memory = 8192  # Give master more resources
-                cpu = 4096
+                memory = 2048  
+                cpu = 1024    
                 
             task_arn = launch_fargate_task(worker_info, memory=memory, cpu=cpu)
             print(f"Launched Fargate task {task_arn} for worker id: {worker_id}")

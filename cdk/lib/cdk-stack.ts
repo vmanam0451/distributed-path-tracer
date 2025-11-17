@@ -24,8 +24,5 @@ export class CdkStack extends cdk.Stack {
       ),
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: "PathTracer" }),
     });
-
-    
-
   }
 }

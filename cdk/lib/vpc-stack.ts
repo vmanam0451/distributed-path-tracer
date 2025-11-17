@@ -10,7 +10,6 @@ export class VpcStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // VPC Infrastructure
     this.vpc = new ec2.Vpc(this, "PathTracerVPC", {
       maxAzs: 1,
       subnetConfiguration: [
