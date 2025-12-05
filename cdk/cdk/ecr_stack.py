@@ -1,7 +1,7 @@
 from aws_cdk import (
     Stack,
     aws_ecr as ecr,
-    cdk
+    RemovalPolicy
 )
 from constructs import Construct
 
@@ -13,7 +13,7 @@ class EcrStack(Stack):
         repository = ecr.Repository(
             self, "DistributedPathTracerRepo",
             repository_name="distributed-path-tracer-repo",
-            removal_policy=cdk.RemovalPolicy.DESTROY
+            removal_policy=RemovalPolicy.DESTROY
         )
 
         self.repository = repository

@@ -22,7 +22,7 @@ def split_2d_grid_rectangular(width, height, num_workers):
             break
             
         for col in range(cols):
-            if worker_id >= num_workers + 1:
+            if worker_id > num_workers + 1:
                 break
                 
             x_start = (width * col) // cols
@@ -237,8 +237,11 @@ def lambda_handler(event, context):
         
         for worker_id, worker_info in worker_infos.items():
             print(f"Launching Fargate task for worker id: {worker_id}")
-            memory = 4096  # Default memory 4GB
-            cpu = 2048    # Default CPU 2 vCPU
+            scene_size_mb = int(worker_info['scene_info'].get('total_size', 0) * 1024)
+            
+            base_memory = 16384
+            memory = base_memory # For testing, set all to 16 GB
+            cpu = 8192    # Default CPU 8 vCPU
             
             # You can adjust resources based on worker role or scene complexity
             if worker_id == 'master':
@@ -265,12 +268,12 @@ def lambda_handler(event, context):
     
 def launch_fargate_task(worker_info, memory=4096, cpu=2048):
     try:
-        cluster_name = os.environ.get('ECS_CLUSTER', 'PathTracerCluster')
-        task_definition = os.environ.get('TASK_DEFINITION')
-        subnet_id = os.environ.get('SUBNET_ID')
+        cluster_name = os.environ.get('ECS_CLUSTER_ARN')
+        task_definition = os.environ.get('TASK_DEFINITION_ARN')
+        subnet_ids = os.environ.get('SUBNET_IDS')
         security_group_id = os.environ.get('SECURITY_GROUP_ID')
         
-        if not task_definition or not subnet_id or not security_group_id:
+        if not cluster_name or not task_definition or not subnet_ids or not security_group_id:
             raise ValueError("Missing required environment variables for task launch")
             
         ecs_client = boto3.client('ecs')
@@ -287,17 +290,17 @@ def launch_fargate_task(worker_info, memory=4096, cpu=2048):
             launchType='FARGATE',
             networkConfiguration={
                 'awsvpcConfiguration': {
-                    'subnets': [subnet_id],
+                    'subnets': subnet_ids.split(","),
                     'securityGroups': [security_group_id],
                     'assignPublicIp': 'DISABLED'
                 }
             },
             overrides={
+                'cpu': str(cpu),
+                'memory': str(memory),
                 'containerOverrides': [{
-                    'name': 'worker',
-                    'environment': env_vars,
-                    'cpu': cpu,
-                    'memory': str(memory)
+                    'name': 'worker', # Container name must match with container name in ecs_stack
+                    'environment': env_vars
                 }]
             }
         )

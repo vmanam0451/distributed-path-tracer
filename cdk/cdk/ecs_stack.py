@@ -2,13 +2,16 @@ from aws_cdk import (
     Stack,
     aws_ecs as ecs,
     aws_ec2 as ec2,
+    aws_iam as iam,
+    aws_ecr as ecr,
 )
 
+from config import Config
 from constructs import Construct
 
 class EcsStack(Stack):
     
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, ecr_repository: ecr.IRepository, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         vpc = ec2.Vpc(
@@ -21,6 +24,12 @@ class EcsStack(Stack):
                 )
             ],
             max_azs=1)
+
+        task_security_group = ec2.SecurityGroup(
+            self, "TaskSecurityGroup",
+            vpc=vpc,
+            description="Security group for ECS tasks"
+        )
         
         endpoint_security_group = ec2.SecurityGroup(
             self, "EndpointSecurityGroup",
@@ -37,8 +46,7 @@ class EcsStack(Stack):
         
         vpc.add_gateway_endpoint(
             "S3Endpoint",
-            service=ec2.GatewayVpcEndpointAwsService.S3,
-            security_groups=[endpoint_security_group]
+            service=ec2.GatewayVpcEndpointAwsService.S3
         )
 
         vpc.add_interface_endpoint(
@@ -76,3 +84,51 @@ class EcsStack(Stack):
             cluster_name="DistributedPathTracerCluster",
             vpc=vpc
         )
+
+        task_execution_role = iam.Role(
+            self, "TaskExecutionRole",
+            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonECSTaskExecutionRolePolicy")
+            ]
+        )
+
+        task_role = iam.Role(
+            self, "TaskRole",
+            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com")
+        )
+
+        task_role.add_to_policy(iam.PolicyStatement(
+            actions=["s3:GetObject", "s3:PutObject"],
+            resources=[Config.get_s3_object_arn()]
+        ))
+
+        task_role.add_to_policy(iam.PolicyStatement(
+            actions=["sns:Publish"],
+            resources=[Config.get_sns_topic_arn(self.region, self.account)]
+        ))
+
+        task_role.add_to_policy(iam.PolicyStatement(
+            actions=["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:Get*"],
+            resources=[Config.get_sqs_queue_arn(self.region, self.account)]
+        ))
+
+        task_definition = ecs.FargateTaskDefinition(
+            self, "DistributedPathTracerWorker",
+            family="distributed-path-tracer-worker",
+            memory_limit_mib=2048,
+            cpu=1024,
+            execution_role=task_execution_role,
+            task_role=task_role
+        )
+
+        container = task_definition.add_container(
+            "worker",
+            image=ecs.ContainerImage.from_ecr_repository(ecr_repository, "worker-latest"),
+            logging=ecs.LogDrivers.aws_logs(stream_prefix="DistributedPathTracerWorker")
+        )
+
+        self.cluster = cluster
+        self.task_definition = task_definition
+        self.task_security_group = task_security_group
+        self.vpc = vpc
