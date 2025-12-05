@@ -106,7 +106,14 @@ def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: Lis
             raise
             
     def _subscribe_queue_to_topic(queue_arn, worker_id):
-        filter_policy = {'worker_id': ["MASTER"]} if worker_id == 'master' else {"worker_id": ["WORKERS", str(worker_id)]}
+        if worker_id == 'master':
+            filter_policy = {'worker_id': ["MASTER"]}
+        else:
+            filter_policy = {
+                'worker_id': ['WORKERS', str(worker_id)],
+                'source_worker_id': [{'anything-but': [str(worker_id)]}]
+            }
+
         sns_client.subscribe(
             TopicArn=topic_arn,
             Protocol='sqs',
