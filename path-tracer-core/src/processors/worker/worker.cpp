@@ -18,9 +18,9 @@
 namespace processors
 {
 worker::worker(const models::worker_info &worker_info)
+    : m_worker_info(worker_info), m_gltf_file_path(std::filesystem::path("/tmp/scene.gltf")),
+      m_batch_sender(worker_info.sns_topic_arn, worker_info.worker_id, 2000, std::chrono::milliseconds(100))
 {
-    this->m_worker_info = worker_info;
-    this->m_gltf_file_path = std::filesystem::path("/tmp/scene.gltf");
 }
 
 worker::~worker()
@@ -46,7 +46,7 @@ void worker::run()
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
     spdlog::info("Hardware Threads: {}", hardware_threads);
-    unsigned int available_threads = std::max(1u, hardware_threads - 3);
+    unsigned int available_threads = std::max(1u, hardware_threads - 4);
 
     unsigned int shading_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.4)));
     unsigned int object_intersection_threads =
@@ -84,6 +84,8 @@ void worker::run()
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     }));
+
+    threads.push_back(std::thread([&]() { m_batch_sender.flush_loop(); }));
 
     models::SQSOptions sqs_options;
     sqs_options.queueUrl = m_worker_info.sqs_queue_url;
@@ -203,7 +205,7 @@ void worker::process_ray_from_queue(models::cloud_ray &ray)
         ray.worker_id = m_worker_info.worker_id;
 
         ray.type = models::ray_type::RESOLVE;
-        cloud::sns_send(m_worker_info.sns_topic_arn, orig_worker, ray);
+        m_batch_sender.enqueue_ray(ray, orig_worker);
     }
     else if (ray.type == models::ray_type::OWN)
     {

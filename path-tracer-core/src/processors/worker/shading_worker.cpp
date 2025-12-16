@@ -215,7 +215,7 @@ void worker::process_shading()
 
         if (ray.stage == models::ray_stage::ACCUMULATE)
         {
-            cloud::sns_send(m_worker_info.sns_topic_arn, models::MASTER_ID, ray);
+            m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
         }
         else
         {

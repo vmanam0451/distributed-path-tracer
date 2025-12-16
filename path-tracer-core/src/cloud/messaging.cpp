@@ -37,8 +37,18 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
                     }
 
                     auto ray_json = json::parse(message.GetBody());
-                    models::cloud_ray ray = ray_json.get<models::cloud_ray>();
-                    callback(ray);
+                    if (ray_json.contains("rays")) {
+                        auto rays = ray_json["rays"].get<std::vector<models::cloud_ray>>();
+                        for (auto &ray : rays) 
+                        {
+                            callback(ray);
+                        }
+                    }
+                    else 
+                    {
+                        models::cloud_ray ray = ray_json.get<models::cloud_ray>();
+                        callback(ray);
+                    }
 
                     Aws::SQS::Model::DeleteMessageRequest delete_req;
                     delete_req.SetQueueUrl(options.queueUrl);
@@ -60,33 +70,8 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
     }
 }
 
-void sns_send(const std::string &topic_arn, const std::string &worker_id, const models::cloud_ray &ray)
-{
-    Aws::SNS::SNSClient sns_client;
-
-    Aws::SNS::Model::PublishRequest publish_request;
-    publish_request.SetTopicArn(topic_arn);
-    publish_request.SetMessage(json(ray).dump());
-
-    Aws::SNS::Model::MessageAttributeValue worker_id_attr;
-    worker_id_attr.SetDataType("String");
-    worker_id_attr.SetStringValue(worker_id);
-
-    publish_request.AddMessageAttributes("worker_id", worker_id_attr);
-
-    auto outcome = sns_client.Publish(publish_request);
-
-    if (!outcome.IsSuccess())
-    {
-        spdlog::error("Failed to publish message to SNS: {}", outcome.GetError().GetMessage());
-    }
-    else
-    {
-        spdlog::info("Message published to SNS topic {} with worker ID {}", topic_arn, worker_id);
-    }
-}
-
-void sns_send_batch(const std::string &topic_arn, const std::string &source_worker_id, const std::string &target_id, const std::vector<models::cloud_ray> &rays)
+void sns_send_batch(const std::string &topic_arn, const std::string &source_worker_id, const std::string &target_id,
+                    const std::vector<models::cloud_ray> &rays)
 {
     Aws::SNS::SNSClient sns_client;
 

@@ -5,6 +5,7 @@
 
 #include <cstdint>
 
+#include "cloud/batch_sender.hpp"
 #include "cloud/s3.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/work_info.hpp"
@@ -70,6 +71,8 @@ class worker : public application
     cloud::distributed_scene m_scene;
 
     std::atomic<bool> m_should_terminate;
+
+    cloud::batch_sender m_batch_sender;
 
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_queue;
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_result_queue;

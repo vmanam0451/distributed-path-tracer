@@ -1,6 +1,8 @@
 #include "batch_sender.hpp"
 #include "messaging.hpp"
 
+namespace cloud
+{
 void batch_sender::enqueue_ray(const models::cloud_ray &ray, const std::string &target_id)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -15,16 +17,18 @@ void batch_sender::enqueue_ray(const models::cloud_ray &ray, const std::string &
     }
 }
 
-void batch_sender::flush_loop() {
+void batch_sender::flush_loop()
+{
     while (!m_terminate)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_cv.wait_for(lock, m_flush_interval, [this]() { return m_terminate.load(); });
-        
-        if (m_terminate) {
+
+        if (m_terminate)
+        {
             break;
         }
-        
+
         std::vector<std::pair<std::string, std::vector<models::cloud_ray>>> batches_to_send;
         for (auto &pair : m_pending_rays)
         {
@@ -49,10 +53,11 @@ void batch_sender::flush_loop() {
 
 void batch_sender::send_batch(const std::string &target_id, const std::vector<models::cloud_ray> &rays)
 {
-    if (rays.empty()) {
+    if (rays.empty())
+    {
         return;
     }
 
     cloud::sns_send_batch(m_topic_arn, m_source_worker_id, target_id, rays);
 }
-
+} // namespace cloud

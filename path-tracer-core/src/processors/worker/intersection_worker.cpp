@@ -75,7 +75,7 @@ void worker::process_object_intersections()
         m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
 
         ray.type = models::ray_type::CALCULATE;
-        cloud::sns_send(m_worker_info.sns_topic_arn, models::WORKERS_ID, ray);
+        m_batch_sender.enqueue_ray(ray, models::WORKERS_ID);
     }
 }
 
@@ -96,7 +96,7 @@ void worker::process_direct_lighting_intersections()
         m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
 
         ray.type = models::ray_type::CALCULATE;
-        cloud::sns_send(m_worker_info.sns_topic_arn, models::WORKERS_ID, ray);
+        m_batch_sender.enqueue_ray(ray, models::WORKERS_ID);
     }
 }
 
@@ -160,7 +160,7 @@ void worker::process_object_intersection_results()
             else
             {
                 best_ray.type = models::ray_type::OWN;
-                cloud::sns_send(m_worker_info.sns_topic_arn, best_ray.worker_id, best_ray);
+                m_batch_sender.enqueue_ray(best_ray, best_ray.worker_id);
             }
         }
     }
