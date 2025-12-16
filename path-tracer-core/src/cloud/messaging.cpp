@@ -86,6 +86,39 @@ void sns_send(const std::string &topic_arn, const std::string &worker_id, const 
     }
 }
 
+void sns_send_batch(const std::string &topic_arn, const std::string &source_worker_id, const std::string &target_id, const std::vector<models::cloud_ray> &rays)
+{
+    Aws::SNS::SNSClient sns_client;
+
+    nlohmann::json rays_json;
+    rays_json["rays"] = rays;
+
+    Aws::SNS::Model::PublishRequest publish_request;
+    publish_request.SetTopicArn(topic_arn);
+    publish_request.SetMessage(json(rays_json).dump());
+
+    Aws::SNS::Model::MessageAttributeValue worker_id_attr;
+    worker_id_attr.SetDataType("String");
+    worker_id_attr.SetStringValue(target_id);
+    publish_request.AddMessageAttributes("worker_id", worker_id_attr);
+
+    Aws::SNS::Model::MessageAttributeValue source_worker_id_attr;
+    source_worker_id_attr.SetDataType("String");
+    source_worker_id_attr.SetStringValue(source_worker_id);
+    publish_request.AddMessageAttributes("source_worker_id", source_worker_id_attr);
+
+    auto outcome = sns_client.Publish(publish_request);
+
+    if (!outcome.IsSuccess())
+    {
+        spdlog::error("Failed to publish message to SNS: {}", outcome.GetError().GetMessage());
+    }
+    else
+    {
+        spdlog::info("Message published to SNS topic {} with worker ID {}", topic_arn, target_id);
+    }
+}
+
 void sns_signal_termination(const std::string &topic_arn, const std::string &worker_id)
 {
     Aws::SNS::SNSClient sns_client;

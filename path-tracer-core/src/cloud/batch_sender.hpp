@@ -12,11 +12,13 @@ class batch_sender {
         : m_topic_arn(topic_arn), m_source_worker_id(source_worker_id), m_batch_size(batch_size), m_flush_interval(flush_interval)
         {}
 
-    ~batch_sender();
+    ~batch_sender() {
+        m_terminate = true;
+        m_cv.notify_all();
+    }
 
     void enqueue_ray(const models::cloud_ray &ray, const std::string &target_id);
     void flush_loop();
-    void flush_all();
 
     private:
     void send_batch(const std::string &target_id, const std::vector<models::cloud_ray> &rays);
@@ -30,5 +32,6 @@ class batch_sender {
     std::unordered_map<std::string, std::vector<models::cloud_ray>> m_pending_rays;
     std::mutex m_mutex;
     std::condition_variable m_cv;
+    std::atomic<bool> m_terminate = false;
 
 };
