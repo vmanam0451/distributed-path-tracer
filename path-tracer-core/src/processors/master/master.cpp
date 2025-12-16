@@ -20,7 +20,7 @@ master::~master()
 void master::run()
 {
     this->resolution =
-        math::uvec2((m_worker_info.max_x - m_worker_info.min_x), (m_worker_info.max_y - m_worker_info.min_y));
+        math::uvec2((m_worker_info.max_x - m_worker_info.min_x) + 1, (m_worker_info.max_y - m_worker_info.min_y) + 1);
     this->sample_count = m_worker_info.samples;
     this->m_should_terminate = false;
     this->m_completed_rays = 0;

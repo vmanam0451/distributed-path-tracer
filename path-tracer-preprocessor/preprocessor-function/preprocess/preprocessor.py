@@ -51,6 +51,7 @@ class Preprocessor:
                 prim_size = self.get_primitive_size(primitive) * 1e-9
                 print(prim_size)
                 total_size += prim_size
+                current_size += prim_size
                 
                 if current_worker_id not in split_scene['split_work']:
                     split_scene['split_work'][current_worker_id] = {"work": {}, "total_size": 0}
@@ -61,7 +62,7 @@ class Preprocessor:
                 work[mesh.name].append(prim_id)
                 worker_info['total_size'] += prim_size
                     
-                if (self.memory_per_worker_GB is not None and (current_size + prim_size) >= self.memory_per_worker_GB) or \
+                if (self.memory_per_worker_GB is not None and current_size >= self.memory_per_worker_GB) or \
                     (self.num_workers is not None and (current_primitive >= total_primitives / self.num_workers) and 
                     current_worker_id < self.num_workers):
                     
