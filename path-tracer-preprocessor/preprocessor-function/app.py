@@ -18,11 +18,11 @@ def split_2d_grid_rectangular(width, height, num_workers):
     worker_id = 1
     
     for row in range(rows):
-        if worker_id >= num_workers:
+        if worker_id > num_workers:
             break
             
         for col in range(cols):
-            if worker_id > num_workers + 1:
+            if worker_id > num_workers:
                 break
                 
             x_start = (width * col) // cols

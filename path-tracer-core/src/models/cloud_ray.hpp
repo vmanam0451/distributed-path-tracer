@@ -71,6 +71,7 @@ struct cloud_ray
 
 inline void to_json(nlohmann::json &j, const cloud_ray &r)
 {
+    j["worker_id"] = r.worker_id;
     j["uuid"] = r.uuid;
     j["ray"] = r.ray;
 
@@ -95,6 +96,7 @@ inline void to_json(nlohmann::json &j, const cloud_ray &r)
 
 inline void from_json(const nlohmann::json &j, cloud_ray &r)
 {
+    j.at("worker_id").get_to(r.worker_id);
     j.at("uuid").get_to(r.uuid);
     j.at("ray").get_to(r.ray);
 
