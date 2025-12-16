@@ -25,29 +25,27 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
             {
                 try
                 {
-                    auto attributes = message.GetMessageAttributes();
-                    if (attributes.find("should_terminate") != attributes.end())
-                    {
-                        if (attributes.at("should_terminate").GetStringValue() == "true")
-                        {
-                            m_should_terminate = true;
-                            spdlog::info("Termination signal received from SQS.");
-                            return;
-                        }
-                    }
+                    auto envelope = json::parse(message.GetBody());
 
-                    auto ray_json = json::parse(message.GetBody());
-                    if (ray_json.contains("rays")) {
-                        auto rays = ray_json["rays"].get<std::vector<models::cloud_ray>>();
-                        for (auto &ray : rays) 
+                    std::string message_body = envelope["Message"].get<std::string>();
+
+                    auto message_json = json::parse(message_body);
+                    if (message_json.contains("rays"))
+                    {
+                        auto rays = message_json["rays"].get<std::vector<models::cloud_ray>>();
+                        for (auto &ray : rays)
                         {
                             callback(ray);
                         }
                     }
-                    else 
+                    else if (message_json.contains("terminate"))
                     {
-                        models::cloud_ray ray = ray_json.get<models::cloud_ray>();
-                        callback(ray);
+                        m_should_terminate = true;
+                        spdlog::info("Received termination signal via SQS.");
+                    }
+                    else
+                    {
+                        spdlog::warn("Received unknown message format via SQS: {}", message_body);
                     }
 
                     Aws::SQS::Model::DeleteMessageRequest delete_req;
@@ -75,32 +73,45 @@ void sns_send_batch(const std::string &topic_arn, const std::string &source_work
 {
     Aws::SNS::SNSClient sns_client;
 
-    nlohmann::json rays_json;
-    rays_json["rays"] = rays;
+    nlohmann::json sample_ray_json = rays[0];
+    size_t ray_size = sample_ray_json.dump().size();
+    ray_size = static_cast<size_t>(ray_size * 1.2); // Add some buffer for JSON overhead
 
-    Aws::SNS::Model::PublishRequest publish_request;
-    publish_request.SetTopicArn(topic_arn);
-    publish_request.SetMessage(json(rays_json).dump());
+    size_t max_rays_per_message = models::SNS_USABLE_SIZE / ray_size;
+    max_rays_per_message = std::max(max_rays_per_message, static_cast<size_t>(1));
 
-    Aws::SNS::Model::MessageAttributeValue worker_id_attr;
-    worker_id_attr.SetDataType("String");
-    worker_id_attr.SetStringValue(target_id);
-    publish_request.AddMessageAttributes("worker_id", worker_id_attr);
-
-    Aws::SNS::Model::MessageAttributeValue source_worker_id_attr;
-    source_worker_id_attr.SetDataType("String");
-    source_worker_id_attr.SetStringValue(source_worker_id);
-    publish_request.AddMessageAttributes("source_worker_id", source_worker_id_attr);
-
-    auto outcome = sns_client.Publish(publish_request);
-
-    if (!outcome.IsSuccess())
+    for (size_t i = 0; i < rays.size(); i += max_rays_per_message)
     {
-        spdlog::error("Failed to publish message to SNS: {}", outcome.GetError().GetMessage());
-    }
-    else
-    {
-        spdlog::info("Message published to SNS topic {} with worker ID {}", topic_arn, target_id);
+        size_t end = std::min(i + max_rays_per_message, rays.size());
+        std::vector<models::cloud_ray> chunk(rays.begin() + i, rays.begin() + end);
+
+        nlohmann::json rays_json;
+        rays_json["rays"] = chunk;
+
+        Aws::SNS::Model::PublishRequest publish_request;
+        publish_request.SetTopicArn(topic_arn);
+        publish_request.SetMessage(rays_json.dump());
+
+        Aws::SNS::Model::MessageAttributeValue worker_id_attr;
+        worker_id_attr.SetDataType("String");
+        worker_id_attr.SetStringValue(target_id);
+        publish_request.AddMessageAttributes("worker_id", worker_id_attr);
+
+        Aws::SNS::Model::MessageAttributeValue source_worker_id_attr;
+        source_worker_id_attr.SetDataType("String");
+        source_worker_id_attr.SetStringValue(source_worker_id);
+        publish_request.AddMessageAttributes("source_worker_id", source_worker_id_attr);
+
+        auto outcome = sns_client.Publish(publish_request);
+
+        if (!outcome.IsSuccess())
+        {
+            spdlog::error("Failed to publish message to SNS: {}", outcome.GetError().GetMessage());
+        }
+        else
+        {
+            spdlog::info("Message published to SNS topic {} with worker ID {}", topic_arn, target_id);
+        }
     }
 }
 
@@ -117,11 +128,11 @@ void sns_signal_termination(const std::string &topic_arn, const std::string &wor
 
     publish_request.AddMessageAttributes("worker_id", worker_id_attr);
 
-    Aws::SNS::Model::MessageAttributeValue terminate_attr;
-    terminate_attr.SetDataType("String");
-    terminate_attr.SetStringValue("true");
+    Aws::SNS::Model::MessageAttributeValue source_worker_id_attr;
+    source_worker_id_attr.SetDataType("String");
+    source_worker_id_attr.SetStringValue("SYSTEM"); // Use a special ID that won't match any worker
+    publish_request.AddMessageAttributes("source_worker_id", source_worker_id_attr);
 
-    publish_request.AddMessageAttributes("should_terminate", terminate_attr);
     publish_request.SetMessage("{\"terminate\":true}");
 
     auto outcome = sns_client.Publish(publish_request);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <concurrentqueue/concurrentqueue.h>
+#include <mutex>
 #include <sys/types.h>
 
 #include <cstdint>
@@ -83,6 +84,9 @@ class worker : public application
     moodycamel::ConcurrentQueue<models::cloud_ray> m_shading_queue;
 
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_object_intersection_results;
+    std::mutex m_object_intersection_results_mutex;
+
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
+    std::mutex m_direct_lighting_intersection_results_mutex;
 };
 } // namespace processors

@@ -12,6 +12,7 @@ void batch_sender::enqueue_ray(const models::cloud_ray &ray, const std::string &
     {
         auto rays_to_send = std::move(m_pending_rays[target_id]);
         m_pending_rays[target_id].clear();
+        m_pending_rays[target_id].reserve(m_batch_size);
         lock.unlock();
         send_batch(target_id, rays_to_send);
     }

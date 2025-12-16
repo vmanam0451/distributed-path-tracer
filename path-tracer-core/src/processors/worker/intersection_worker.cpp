@@ -1,4 +1,5 @@
 #include <cmath>
+#include <mutex>
 #include <path_tracer/core/utils.hpp>
 #include <thread>
 
@@ -71,8 +72,12 @@ void worker::process_object_intersections()
         // system. By adding to the map here, can remove the check in the results
         // method. If results worker gets an id not in map, just drop it.
 
-        m_object_intersection_result_queue.enqueue(ray);
-        m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+        
+        {
+            std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
+            m_object_intersection_result_queue.enqueue(ray);
+            m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+        }
 
         ray.type = models::ray_type::CALCULATE;
         m_batch_sender.enqueue_ray(ray, models::WORKERS_ID);
@@ -92,8 +97,12 @@ void worker::process_direct_lighting_intersections()
         }
 
         calculate_direct_lighting_intersection(ray);
-        m_direct_lighting_intersection_result_queue.enqueue(ray);
-        m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+        
+        {
+            std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
+            m_direct_lighting_intersection_result_queue.enqueue(ray);
+            m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
+        }
 
         ray.type = models::ray_type::CALCULATE;
         m_batch_sender.enqueue_ray(ray, models::WORKERS_ID);
@@ -111,6 +120,8 @@ void worker::process_object_intersection_results()
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
+
+        std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
 
         if (m_object_intersection_results.find(ray.uuid) == m_object_intersection_results.end())
         {
@@ -177,6 +188,8 @@ void worker::process_direct_lighting_intersection_results()
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
+
+        std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
 
         if (m_direct_lighting_intersection_results.find(ray.uuid) == m_direct_lighting_intersection_results.end())
         {
