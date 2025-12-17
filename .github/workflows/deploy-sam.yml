@@ -1,0 +1,65 @@
+name: Deploy SAM Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - staging
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'prod' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: SAM Build
+        run: sam build --cached
+
+      - name: SAM Deploy
+        run: |
+          sam deploy \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --stack-name distributed-path-tracer-stack \
+            --s3-bucket ${{ secrets.SAM_ARTIFACTS_BUCKET }} \
+            --s3-prefix distributed-path-tracer-stack \
+            --region ${{ vars.AWS_REGION || 'us-east-1' }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+            --image-repository ${{ secrets.ECR_REPOSITORY }} \
+            --parameter-overrides ENV=${{ github.event.inputs.environment || 'prod' }} \
+            --on-failure DELETE
+
+      - name: Output Stack Info
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name distributed-path-tracer-stack \
+            --region ${{ vars.AWS_REGION || 'us-east-1' }} \
+            --query 'Stacks[0].Outputs' \
+            --output table
