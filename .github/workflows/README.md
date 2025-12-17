@@ -49,38 +49,162 @@ Create an IAM role in AWS that GitHub Actions can assume using OpenID Connect (O
    ```
 
 3. **Attach Policies to the Role**:
-   The role needs the following permissions:
-   - CloudFormation full access
-   - Lambda full access
-   - IAM role creation/update
-   - S3 access for artifacts bucket
-   - ECR access for Docker images
-   - API Gateway access
-   - SNS and SQS access
-
-   Example policy:
+   The role needs the following permissions. Here's a more restrictive policy (adjust resource ARNs as needed):
+   
    ```json
    {
      "Version": "2012-10-17",
      "Statement": [
        {
+         "Sid": "CloudFormationPermissions",
          "Effect": "Allow",
          "Action": [
-           "cloudformation:*",
-           "lambda:*",
-           "iam:*",
-           "s3:*",
-           "ecr:*",
-           "apigateway:*",
-           "sns:*",
-           "sqs:*",
-           "logs:*"
+           "cloudformation:CreateStack",
+           "cloudformation:UpdateStack",
+           "cloudformation:DeleteStack",
+           "cloudformation:DescribeStacks",
+           "cloudformation:DescribeStackEvents",
+           "cloudformation:DescribeStackResource",
+           "cloudformation:DescribeStackResources",
+           "cloudformation:GetTemplate",
+           "cloudformation:ValidateTemplate",
+           "cloudformation:CreateChangeSet",
+           "cloudformation:DescribeChangeSet",
+           "cloudformation:ExecuteChangeSet",
+           "cloudformation:DeleteChangeSet",
+           "cloudformation:ListStackResources"
+         ],
+         "Resource": [
+           "arn:aws:cloudformation:*:*:stack/distributed-path-tracer-stack/*",
+           "arn:aws:cloudformation:*:*:stack/distributed-path-tracer-stack-*/*"
+         ]
+       },
+       {
+         "Sid": "LambdaPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "lambda:CreateFunction",
+           "lambda:DeleteFunction",
+           "lambda:UpdateFunctionCode",
+           "lambda:UpdateFunctionConfiguration",
+           "lambda:GetFunction",
+           "lambda:GetFunctionConfiguration",
+           "lambda:AddPermission",
+           "lambda:RemovePermission",
+           "lambda:InvokeFunction",
+           "lambda:CreateFunctionUrlConfig",
+           "lambda:UpdateFunctionUrlConfig",
+           "lambda:DeleteFunctionUrlConfig",
+           "lambda:GetFunctionUrlConfig",
+           "lambda:TagResource",
+           "lambda:UntagResource"
+         ],
+         "Resource": "arn:aws:lambda:*:*:function:distributed-path-tracer-*"
+       },
+       {
+         "Sid": "IAMPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "iam:CreateRole",
+           "iam:DeleteRole",
+           "iam:GetRole",
+           "iam:PassRole",
+           "iam:AttachRolePolicy",
+           "iam:DetachRolePolicy",
+           "iam:PutRolePolicy",
+           "iam:DeleteRolePolicy",
+           "iam:GetRolePolicy",
+           "iam:TagRole",
+           "iam:UntagRole"
+         ],
+         "Resource": "arn:aws:iam::*:role/distributed-path-tracer-*"
+       },
+       {
+         "Sid": "S3Permissions",
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:PutObject",
+           "s3:DeleteObject",
+           "s3:ListBucket",
+           "s3:GetBucketLocation"
+         ],
+         "Resource": [
+           "arn:aws:s3:::distributed-path-tracer-*",
+           "arn:aws:s3:::distributed-path-tracer-*/*"
+         ]
+       },
+       {
+         "Sid": "ECRPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "ecr:GetAuthorizationToken",
+           "ecr:BatchCheckLayerAvailability",
+           "ecr:GetDownloadUrlForLayer",
+           "ecr:BatchGetImage",
+           "ecr:PutImage",
+           "ecr:InitiateLayerUpload",
+           "ecr:UploadLayerPart",
+           "ecr:CompleteLayerUpload",
+           "ecr:DescribeRepositories",
+           "ecr:CreateRepository",
+           "ecr:SetRepositoryPolicy"
          ],
          "Resource": "*"
+       },
+       {
+         "Sid": "APIGatewayPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "apigateway:POST",
+           "apigateway:GET",
+           "apigateway:PATCH",
+           "apigateway:DELETE",
+           "apigateway:PUT"
+         ],
+         "Resource": "arn:aws:apigateway:*::/*"
+       },
+       {
+         "Sid": "SNSSQSPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "sns:CreateTopic",
+           "sns:DeleteTopic",
+           "sns:GetTopicAttributes",
+           "sns:SetTopicAttributes",
+           "sns:Subscribe",
+           "sns:Unsubscribe",
+           "sns:ListTopics",
+           "sns:TagResource",
+           "sns:UntagResource",
+           "sqs:CreateQueue",
+           "sqs:DeleteQueue",
+           "sqs:GetQueueAttributes",
+           "sqs:SetQueueAttributes",
+           "sqs:TagQueue",
+           "sqs:UntagQueue"
+         ],
+         "Resource": "*"
+       },
+       {
+         "Sid": "CloudWatchLogsPermissions",
+         "Effect": "Allow",
+         "Action": [
+           "logs:CreateLogGroup",
+           "logs:CreateLogStream",
+           "logs:PutLogEvents",
+           "logs:DescribeLogGroups",
+           "logs:DeleteLogGroup",
+           "logs:TagResource",
+           "logs:UntagResource"
+         ],
+         "Resource": "arn:aws:logs:*:*:log-group:/aws/lambda/distributed-path-tracer-*"
        }
      ]
    }
    ```
+   
+   Note: Some resources like ECR authorization, SNS/SQS (with dynamic naming), require `*` in the resource field. Adjust ARNs based on your account and naming conventions.
 
 ### 2. AWS Resources
 
@@ -88,7 +212,7 @@ Create the following AWS resources:
 
 1. **S3 Bucket for SAM Artifacts**:
    - Create an S3 bucket to store SAM deployment artifacts
-   - Example: `distributed-path-trace-function-artifacts`
+   - Example: `distributed-path-tracer-artifacts`
 
 2. **ECR Repository for Docker Images**:
    - Create an ECR repository for the Lambda container images
@@ -103,7 +227,7 @@ Add the following secrets to your GitHub repository (Settings → Secrets and va
 - `AWS_ROLE_ARN`: The ARN of the IAM role created above
   - Example: `arn:aws:iam::123456789012:role/GitHubActionsDeployRole`
 - `SAM_ARTIFACTS_BUCKET`: The name of the S3 bucket for SAM artifacts
-  - Example: `distributed-path-trace-function-artifacts`
+  - Example: `distributed-path-tracer-artifacts`
 - `ECR_REPOSITORY`: The URI of the ECR repository
   - Example: `123456789012.dkr.ecr.us-east-1.amazonaws.com/distributed-path-tracer`
 

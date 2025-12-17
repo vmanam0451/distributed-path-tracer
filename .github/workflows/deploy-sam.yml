@@ -11,6 +11,11 @@ on:
         options:
           - prod
           - staging
+      stack_name:
+        description: 'CloudFormation stack name'
+        required: false
+        default: 'distributed-path-tracer-stack'
+        type: string
 
 permissions:
   id-token: write
@@ -44,9 +49,9 @@ jobs:
           sam deploy \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --stack-name distributed-path-tracer-stack \
+            --stack-name ${{ github.event.inputs.stack_name || 'distributed-path-tracer-stack' }} \
             --s3-bucket ${{ secrets.SAM_ARTIFACTS_BUCKET }} \
-            --s3-prefix distributed-path-tracer-stack \
+            --s3-prefix ${{ github.event.inputs.stack_name || 'distributed-path-tracer-stack' }} \
             --region ${{ vars.AWS_REGION || 'us-east-1' }} \
             --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
             --image-repository ${{ secrets.ECR_REPOSITORY }} \
@@ -56,7 +61,7 @@ jobs:
       - name: Output Stack Info
         run: |
           aws cloudformation describe-stacks \
-            --stack-name distributed-path-tracer-stack \
+            --stack-name ${{ github.event.inputs.stack_name || 'distributed-path-tracer-stack' }} \
             --region ${{ vars.AWS_REGION || 'us-east-1' }} \
             --query 'Stacks[0].Outputs' \
             --output table
