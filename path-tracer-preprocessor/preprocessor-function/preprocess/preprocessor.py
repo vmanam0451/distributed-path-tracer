@@ -60,8 +60,9 @@ class Preprocessor:
                 if mesh.name not in work: work[mesh.name] = []
                 work[mesh.name].append(prim_id)
                 worker_info['total_size'] += prim_size
+                current_size += prim_size
                     
-                if (self.memory_per_worker_GB is not None and (current_size + prim_size) >= self.memory_per_worker_GB) or \
+                if (self.memory_per_worker_GB is not None and current_size >= self.memory_per_worker_GB) or \
                     (self.num_workers is not None and (current_primitive >= total_primitives / self.num_workers) and 
                     current_worker_id < self.num_workers):
                     
