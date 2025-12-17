@@ -1,0 +1,29 @@
+name: Validate SAM Template
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'template.yml'
+      - 'cloudformation/**'
+      - '.github/workflows/validate-sam.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Validate SAM Template
+        run: sam validate --lint
+
+      - name: SAM Build (Dry Run)
+        run: sam build --cached

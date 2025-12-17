@@ -124,14 +124,9 @@ For better control, create GitHub environments:
 
 ## Usage
 
-### Automatic Deployment
-
-The workflow automatically triggers on:
-- **Push to main branch**: Deploys to the `prod` environment
-
 ### Manual Deployment
 
-You can manually trigger a deployment:
+Deployments are triggered manually for better control and to prevent accidental production deployments:
 
 1. Go to Actions → Deploy SAM Application
 2. Click "Run workflow"

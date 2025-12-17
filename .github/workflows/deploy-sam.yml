@@ -11,9 +11,6 @@ on:
         options:
           - prod
           - staging
-  push:
-    branches:
-      - main
 
 permissions:
   id-token: write
@@ -22,7 +19,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'prod' }}
+    environment: ${{ github.event.inputs.environment }}
     
     steps:
       - name: Checkout code
@@ -53,7 +50,7 @@ jobs:
             --region ${{ vars.AWS_REGION || 'us-east-1' }} \
             --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
             --image-repository ${{ secrets.ECR_REPOSITORY }} \
-            --parameter-overrides ENV=${{ github.event.inputs.environment || 'prod' }} \
+            --parameter-overrides ENV=${{ github.event.inputs.environment }} \
             --on-failure DELETE
 
       - name: Output Stack Info
