@@ -9,6 +9,9 @@ on:
       - 'cloudformation/**'
       - '.github/workflows/validate-sam.yml'
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
