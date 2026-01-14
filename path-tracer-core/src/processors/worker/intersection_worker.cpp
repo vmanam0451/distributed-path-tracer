@@ -219,7 +219,15 @@ void worker::process_direct_lighting_intersection_results()
 
             auto best_ray = results.second;
             best_ray.stage = models::ray_stage::SHADING;
-            map_ray_stage_to_queue(best_ray);
+            if (best_ray.worker_id == m_worker_info.worker_id)
+            {
+                map_ray_stage_to_queue(best_ray);
+            }
+            else
+            {
+                best_ray.type = models::ray_type::OWN;
+                m_batch_sender.enqueue_ray(best_ray, best_ray.worker_id);
+            }
         }
     }
 }

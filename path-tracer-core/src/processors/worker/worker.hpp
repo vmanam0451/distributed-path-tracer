@@ -25,6 +25,7 @@ class worker : public application
 
   public:
     math::uvec2 resolution = math::fvec2(640, 480);
+    math::uvec2 global_resolution = math::fvec2(640, 480);
     uint32_t sample_count = 50;
     math::fvec3 environment_factor = math::fvec3::one;
     bool transparent_background = false;

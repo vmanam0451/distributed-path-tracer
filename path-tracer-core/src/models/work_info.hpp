@@ -32,8 +32,11 @@ struct worker_info
     float min_y;
     float max_x;
     float max_y;
+    int image_width;
+    int image_height;
 
     NLOHMANN_DEFINE_TYPE_INTRUSIVE(worker_info, scene_info, scene_bucket, scene_root, worker_id, sqs_queue_url,
-                                   sns_topic_arn, num_workers, samples, bounces, min_x, min_y, max_x, max_y)
+                                   sns_topic_arn, num_workers, samples, bounces, min_x, min_y, max_x, max_y,
+                                   image_width, image_height)
 };
 } // namespace models

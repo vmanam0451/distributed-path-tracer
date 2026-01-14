@@ -48,7 +48,7 @@ void worker::process_shading()
             alpha = transparent_background ? 0.0f : 1.0f;
 
             ray.stage = models::ray_stage::ACCUMULATE;
-            map_ray_stage_to_queue(ray);
+            m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
             continue;
         }
 
@@ -78,7 +78,7 @@ void worker::process_shading()
         if (math::dot(normal, outcoming) <= 0)
         {
             ray.stage = models::ray_stage::ACCUMULATE;
-            map_ray_stage_to_queue(ray);
+            m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
             continue;
         }
 
@@ -105,7 +105,7 @@ void worker::process_shading()
                 ray.color = fvec3::zero;
                 ray.alpha = 1;
                 ray.stage = models::ray_stage::ACCUMULATE;
-                map_ray_stage_to_queue(ray);
+                m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
                 continue;
             }
             else
@@ -199,7 +199,7 @@ void worker::process_shading()
                 if (core::rand() > p)
                 {
                     ray.stage = models::ray_stage::ACCUMULATE;
-                    map_ray_stage_to_queue(ray);
+                    m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
                     continue;
                 }
                 throughput /= p; // Compensate for termination

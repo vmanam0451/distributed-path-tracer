@@ -1,6 +1,7 @@
 #include "worker.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <path_tracer/core/pbr.hpp>
 #include <path_tracer/core/renderer.hpp>
 #include <path_tracer/core/utils.hpp>
@@ -39,6 +40,7 @@ void worker::run()
     m_should_terminate = false;
 
     this->resolution = fvec2((info.max_x - info.min_x) + 1, (info.max_y - info.min_y) + 1);
+    this->global_resolution = fvec2(info.image_width, info.image_height);
     this->sample_count = info.samples;
     this->bounce_count = info.bounces;
 
@@ -131,9 +133,9 @@ void worker::generate_rays()
                     aa_offset = fvec2(core::rand(), core::rand());
                 }
 
-                fvec2 ndc = ((fvec2(pixel) + aa_offset) / resolution) * 2 - fvec2::one;
+                fvec2 ndc = ((fvec2(pixel) + aa_offset) / fvec2(global_resolution)) * 2 - fvec2::one;
                 ndc.y = -ndc.y;
-                float ratio = static_cast<float>(resolution.x) / resolution.y;
+                float ratio = static_cast<float>(global_resolution.x) / global_resolution.y;
 
                 geometry::ray ray = m_scene.m_camera->get_component<scene::camera>()->get_ray(ndc, ratio);
 
@@ -145,6 +147,10 @@ void worker::generate_rays()
                 cloud_ray.bounce = bounce_count;
                 cloud_ray.stage = models::ray_stage::INTERSECT;
                 cloud_ray.worker_id = m_worker_info.worker_id;
+                cloud_ray.object_intersect_distance = std::numeric_limits<float>::max();
+                cloud_ray.direct_light_intersect_result = false;
+                cloud_ray.alpha = 0.0f;
+                cloud_ray.type = models::ray_type::CALCULATE;
 
                 map_ray_stage_to_queue(cloud_ray);
             }
