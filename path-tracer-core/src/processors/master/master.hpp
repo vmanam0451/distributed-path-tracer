@@ -32,7 +32,7 @@ class master : public application
   private:
     models::worker_info m_worker_info;
     std::vector<std::vector<pixel>> pixels;
-    math::uvec2 resolution = math::fvec2(640, 480);
+    math::uvec2 resolution = math::uvec2(640, 480);
     bool transparent_background = false;
     uint32_t sample_count = 50;
 

@@ -218,7 +218,9 @@ def lambda_handler(event, context):
                 "min_x": sub_grid[worker_id]["minX"],
                 "max_x": sub_grid[worker_id]["maxX"],
                 "min_y": sub_grid[worker_id]["minY"],
-                "max_y": sub_grid[worker_id]["maxY"]
+                "max_y": sub_grid[worker_id]["maxY"],
+                "image_width": X,
+                "image_height": Y
             }
         
             worker_infos[worker_id] = worker_info
@@ -237,9 +239,11 @@ def lambda_handler(event, context):
             "samples": samples,
             "bounces": bounces,
             "min_x": 0,
-            "max_x": X,
+            "max_x": X - 1,
             "min_y": 0,
-            "max_y": Y
+            "max_y": Y - 1,
+            "image_width": X,
+            "image_height": Y
         }
         
         for worker_id, worker_info in worker_infos.items():

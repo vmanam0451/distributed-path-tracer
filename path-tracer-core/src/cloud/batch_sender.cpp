@@ -25,11 +25,6 @@ void batch_sender::flush_loop()
         std::unique_lock<std::mutex> lock(m_mutex);
         m_cv.wait_for(lock, m_flush_interval, [this]() { return m_terminate.load(); });
 
-        if (m_terminate)
-        {
-            break;
-        }
-
         std::vector<std::pair<std::string, std::vector<models::cloud_ray>>> batches_to_send;
         for (auto &pair : m_pending_rays)
         {
