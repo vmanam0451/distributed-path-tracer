@@ -1,0 +1,64 @@
+name: CDK Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cdk/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cdk/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  cdk-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cdk
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'cdk/requirements*.txt'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: CDK Synth
+        run: cdk synth
+
+      - name: CDK Diff
+        if: github.event_name == 'pull_request'
+        run: cdk diff
+
+      - name: CDK Deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cdk deploy --all --require-approval never

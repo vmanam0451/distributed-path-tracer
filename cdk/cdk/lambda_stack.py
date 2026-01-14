@@ -9,7 +9,7 @@ from aws_cdk import (
     Duration
 )
 
-from config import Config
+from cdk.config import Config
 from constructs import Construct
 
 class LambdaStack(Stack):
@@ -29,7 +29,7 @@ class LambdaStack(Stack):
             self, "DistributedPathTracerFunction",
             function_name="DistributedPathTracerFunction",
             architecture=_lambda.Architecture.X86_64,
-            code=_lambda.EcrImageCode.from_ecr(ecr_repository, tag_or_digest="preprocessor-latest"),
+            code=_lambda.EcrImageCode.from_ecr_image(ecr_repository, tag_or_digest="preprocessor-latest"),
             handler=_lambda.Handler.FROM_IMAGE,
             runtime=_lambda.Runtime.FROM_IMAGE,
             memory_size=1024,

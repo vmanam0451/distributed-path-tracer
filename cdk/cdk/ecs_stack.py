@@ -6,7 +6,7 @@ from aws_cdk import (
     aws_ecr as ecr,
 )
 
-from config import Config
+from cdk.config import Config
 from constructs import Construct
 
 class EcsStack(Stack):
@@ -63,7 +63,7 @@ class EcsStack(Stack):
 
         vpc.add_interface_endpoint(
             "ECRApiEndpoint",
-            service=ec2.InterfaceVpcEndpointAwsService.ECR_API,
+            service=ec2.InterfaceVpcEndpointAwsService.ECR,
             security_groups=[endpoint_security_group]
         )
 
