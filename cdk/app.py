@@ -3,9 +3,9 @@ import os
 
 import aws_cdk as cdk
 
-from cdk.cdk.ecr_stack import EcrStack
-from cdk.cdk.ecs_stack import EcsStack
-from cdk.cdk.lambda_stack import LambdaStack
+from cdk.ecr_stack import EcrStack
+from cdk.ecs_stack import EcsStack
+from cdk.lambda_stack import LambdaStack
 
 app = cdk.App()
 
