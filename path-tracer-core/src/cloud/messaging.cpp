@@ -14,6 +14,8 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
 
     Aws::SQS::SQSClient sqs_client(config);
 
+    spdlog::info("Starting SQS poll on queue: {}", options.queueUrl);
+
     while (!m_should_terminate)
     {
         Aws::SQS::Model::ReceiveMessageRequest receive_request;
@@ -26,8 +28,13 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
         if (outcome.IsSuccess())
         {
             const auto &messages = outcome.GetResult().GetMessages();
+            if (!messages.empty())
+            {
+                spdlog::info("Received {} messages from SQS", messages.size());
+            }
             for (const auto &message : messages)
             {
+                bool processed_successfully = false;
                 try
                 {
                     auto envelope = json::parse(message.GetBody());
@@ -38,29 +45,40 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
                     if (message_json.contains("rays"))
                     {
                         auto rays = message_json["rays"].get<std::vector<models::cloud_ray>>();
+                        spdlog::info("Processing {} rays from SQS message", rays.size());
                         for (auto &ray : rays)
                         {
                             callback(ray);
                         }
+                        spdlog::info("Finished processing {} rays from SQS message", rays.size());
+                        processed_successfully = true;
                     }
                     else if (message_json.contains("terminate"))
                     {
                         m_should_terminate = true;
                         spdlog::info("Received termination signal via SQS.");
+                        processed_successfully = true;
                     }
                     else
                     {
-                        spdlog::warn("Received unknown message format via SQS: {}", message_body);
+                        spdlog::warn("Received unknown message format via SQS: {}", 
+                                    message_body.substr(0, std::min(message_body.size(), size_t(200))));
                     }
-
-                    Aws::SQS::Model::DeleteMessageRequest delete_req;
-                    delete_req.SetQueueUrl(options.queueUrl);
-                    delete_req.SetReceiptHandle(message.GetReceiptHandle());
-                    sqs_client.DeleteMessage(delete_req);
                 }
                 catch (const json::exception &e)
                 {
-                    spdlog::error("JSON parsing error: {}", e.what());
+                    spdlog::error("JSON parsing error: {}. First 300 chars: {}", 
+                                 e.what(), message.GetBody().substr(0, std::min(message.GetBody().size(), size_t(300))));
+                }
+
+          
+                Aws::SQS::Model::DeleteMessageRequest delete_req;
+                delete_req.SetQueueUrl(options.queueUrl);
+                delete_req.SetReceiptHandle(message.GetReceiptHandle());
+                auto del_outcome = sqs_client.DeleteMessage(delete_req);
+                if (!del_outcome.IsSuccess())
+                {
+                    spdlog::error("Failed to delete SQS message: {}", del_outcome.GetError().GetMessage());
                 }
             }
         }

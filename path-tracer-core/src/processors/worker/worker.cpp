@@ -192,17 +192,17 @@ void worker::process_ray_from_queue(models::cloud_ray &ray)
             return;
         }
 
+        const auto orig_worker = ray.worker_id;
+
         if (ray.stage == models::ray_stage::INTERSECT)
         {
             calculate_object_intersection(ray);
+            ray.worker_id = m_worker_info.worker_id;
         }
         else if (ray.stage == models::ray_stage::DIRECT_LIGHTING)
         {
             calculate_direct_lighting_intersection(ray);
         }
-
-        const auto orig_worker = ray.worker_id;
-        ray.worker_id = m_worker_info.worker_id;
 
         ray.type = models::ray_type::RESOLVE;
         m_batch_sender.enqueue_ray(ray, orig_worker);

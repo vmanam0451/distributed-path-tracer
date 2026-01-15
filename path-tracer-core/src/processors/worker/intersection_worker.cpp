@@ -73,8 +73,8 @@ void worker::process_object_intersections()
         // method. If results worker gets an id not in map, just drop it.
 
         {
-            std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
             m_object_intersection_result_queue.enqueue(ray);
+            std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
             m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }
 
@@ -98,8 +98,8 @@ void worker::process_direct_lighting_intersections()
         calculate_direct_lighting_intersection(ray);
 
         {
-            std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
             m_direct_lighting_intersection_result_queue.enqueue(ray);
+            std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
             m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }
 
