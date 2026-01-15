@@ -248,12 +248,11 @@ def lambda_handler(event, context):
             
             base_memory = 16384
             memory = base_memory # For testing, set all to 16 GB
-            cpu = 8192    # Default CPU 8 vCPU
+            cpu = 8192        # Default CPU 8 vCPU
             
-            # You can adjust resources based on worker role or scene complexity
             if worker_id == 'master':
-                memory = 2048  
-                cpu = 1024    
+                memory = 8192  
+                cpu = 4096    
                 
             task_arn = launch_fargate_task(worker_info, memory=memory, cpu=cpu)
             print(f"Launched Fargate task {task_arn} for worker id: {worker_id}")
@@ -311,6 +310,11 @@ def launch_fargate_task(worker_info, memory=4096, cpu=2048):
                 }]
             }
         )
+        
+        if response.get('failures'):
+            for failure in response['failures']:
+                print(f"Task launch failure for worker {worker_info['worker_id']}: "
+                      f"reason={failure.get('reason')}, detail={failure.get('detail')}")
         
         task_arn = response['tasks'][0]['taskArn'] if response['tasks'] else None
         print(f"Launched task {task_arn} for worker {worker_info['worker_id']}")

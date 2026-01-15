@@ -46,13 +46,14 @@ void worker::run()
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
     spdlog::info("Hardware Threads: {}", hardware_threads);
-    unsigned int available_threads = std::max(1u, hardware_threads - 4 - 2);
 
-    unsigned int shading_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.4)));
-    unsigned int object_intersection_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.3)));
-    unsigned int direct_lighting_intersection_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.3)));
+    // Reserve 3 threads for: main thread, flush_loop, sqs_poll
+    unsigned int reserved_threads = 3;
+    unsigned int available_threads = std::max(5u, hardware_threads - reserved_threads);
+
+    unsigned int shading_threads = std::max(1u, available_threads / 3);
+    unsigned int object_intersection_threads = std::max(1u, available_threads / 3);
+    unsigned int direct_lighting_intersection_threads = std::max(1u, available_threads / 3);
     unsigned int object_intersection_result_threads = 1;
     unsigned int direct_lighting_intersection_result_threads = 1;
 
@@ -71,18 +72,6 @@ void worker::run()
     for (int i = 0; i < shading_threads; i++)
         threads.push_back(std::thread(&worker::process_shading, this));
 
-    threads.push_back(std::thread([&]() {
-        while (!m_should_terminate)
-        {
-            spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, "
-                         "DIRECT_RESULT={}, INDIRECT={},",
-                         m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
-                         m_direct_lighting_intersection_queue.size_approx(),
-                         m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-    }));
-
     threads.push_back(std::thread([&]() { m_batch_sender.flush_loop(); }));
 
     models::SQSOptions sqs_options;
@@ -93,6 +82,16 @@ void worker::run()
     }));
 
     spdlog::info("Hardware Threads {} Total Threads {},", hardware_threads, threads.size());
+
+    while (!m_should_terminate)
+    {
+        spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, "
+                     "DIRECT_RESULT={}, SHADING={}",
+                     m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
+                     m_direct_lighting_intersection_queue.size_approx(),
+                     m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
     for (auto &thread : threads)
         thread.join();
@@ -164,6 +163,9 @@ void worker::map_ray_stage_to_queue(const models::cloud_ray &ray)
         break;
     case models::ray_stage::SHADING:
         m_shading_queue.enqueue(ray);
+        break;
+    case models::ray_stage::ACCUMULATE:
+        m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
         break;
     default:
         break;

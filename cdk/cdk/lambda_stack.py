@@ -5,7 +5,9 @@ from aws_cdk import (
     aws_apigateway as apigw,
     aws_ecs as ecs,
     aws_ec2 as ec2,
-    Duration
+    aws_logs as logs,
+    Duration,
+    RemovalPolicy
 )
 
 from cdk.config import Config
@@ -23,6 +25,13 @@ class LambdaStack(Stack):
 
         subnet_ids = [subnet.subnet_id for subnet in vpc.isolated_subnets]
 
+        log_group = logs.LogGroup(
+            self, "LambdaLogGroup",
+            log_group_name="/aws/lambda/DistributedPathTracerFunction",
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY 
+        )
+
         lambda_function = _lambda.DockerImageFunction(
             self, "DistributedPathTracerFunction",
             function_name="DistributedPathTracerFunction",
@@ -30,6 +39,7 @@ class LambdaStack(Stack):
             code=_lambda.DockerImageCode.from_image_asset("../path-tracer-preprocessor/preprocessor-function"),
             memory_size=1024,
             timeout=Duration.minutes(15),
+            log_group=log_group,
             environment={
                 "ECS_CLUSTER_ARN": ecs_cluster.cluster_arn,
                 "TASK_DEFINITION_ARN": task_definition.task_definition_arn,

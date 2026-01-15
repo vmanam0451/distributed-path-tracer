@@ -213,14 +213,7 @@ void worker::process_shading()
             ray.stage = models::ray_stage::ACCUMULATE;
         }
 
-        if (ray.stage == models::ray_stage::ACCUMULATE)
-        {
-            m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
-        }
-        else
-        {
-            map_ray_stage_to_queue(ray);
-        }
+        map_ray_stage_to_queue(ray);
     }
 }
 } // namespace processors

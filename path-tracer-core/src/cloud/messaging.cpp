@@ -7,7 +7,12 @@ namespace cloud
 void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_terminate,
               std::function<void(models::cloud_ray &ray)> callback)
 {
-    Aws::SQS::SQSClient sqs_client;
+
+    Aws::Client::ClientConfiguration config;
+    config.requestTimeoutMs = (options.waitTimeSeconds + 10) * 1000; // Add 10 second buffer
+    config.connectTimeoutMs = 5000;
+
+    Aws::SQS::SQSClient sqs_client(config);
 
     while (!m_should_terminate)
     {
@@ -68,50 +73,108 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
     }
 }
 
-void sns_send_batch(const std::string &topic_arn, const std::string &source_worker_id, const std::string &target_id,
-                    const std::vector<models::cloud_ray> &rays)
+void sns_publish_message(Aws::SNS::SNSClient &sns_client, const std::string &topic_arn,
+                         const std::string &source_worker_id, const std::string &target_id,
+                         const std::vector<models::cloud_ray> &chunk)
 {
-    Aws::SNS::SNSClient sns_client;
+    nlohmann::json rays_json;
+    rays_json["rays"] = chunk;
+    std::string message = rays_json.dump();
 
-    nlohmann::json sample_ray_json = rays[0];
-    size_t ray_size = sample_ray_json.dump().size();
-    ray_size = static_cast<size_t>(ray_size * 1.2); // Add some buffer for JSON overhead
+    Aws::SNS::Model::PublishRequest publish_request;
+    publish_request.SetTopicArn(topic_arn);
+    publish_request.SetMessage(message);
 
-    size_t max_rays_per_message = models::SNS_USABLE_SIZE / ray_size;
-    max_rays_per_message = std::max(max_rays_per_message, static_cast<size_t>(1));
+    Aws::SNS::Model::MessageAttributeValue worker_id_attr;
+    worker_id_attr.SetDataType("String");
+    worker_id_attr.SetStringValue(target_id);
+    publish_request.AddMessageAttributes("worker_id", worker_id_attr);
 
-    for (size_t i = 0; i < rays.size(); i += max_rays_per_message)
+    Aws::SNS::Model::MessageAttributeValue source_worker_id_attr;
+    source_worker_id_attr.SetDataType("String");
+    source_worker_id_attr.SetStringValue(source_worker_id);
+    publish_request.AddMessageAttributes("source_worker_id", source_worker_id_attr);
+
+    // Retry with exponential backoff until success
+    constexpr int MAX_RETRIES = 10;
+    constexpr int BASE_DELAY_MS = 100;
+
+    for (int attempt = 0;; ++attempt)
     {
-        size_t end = std::min(i + max_rays_per_message, rays.size());
-        std::vector<models::cloud_ray> chunk(rays.begin() + i, rays.begin() + end);
-
-        nlohmann::json rays_json;
-        rays_json["rays"] = chunk;
-
-        Aws::SNS::Model::PublishRequest publish_request;
-        publish_request.SetTopicArn(topic_arn);
-        publish_request.SetMessage(rays_json.dump());
-
-        Aws::SNS::Model::MessageAttributeValue worker_id_attr;
-        worker_id_attr.SetDataType("String");
-        worker_id_attr.SetStringValue(target_id);
-        publish_request.AddMessageAttributes("worker_id", worker_id_attr);
-
-        Aws::SNS::Model::MessageAttributeValue source_worker_id_attr;
-        source_worker_id_attr.SetDataType("String");
-        source_worker_id_attr.SetStringValue(source_worker_id);
-        publish_request.AddMessageAttributes("source_worker_id", source_worker_id_attr);
-
         auto outcome = sns_client.Publish(publish_request);
 
-        if (!outcome.IsSuccess())
+        if (outcome.IsSuccess())
         {
-            spdlog::error("Failed to publish message to SNS: {}", outcome.GetError().GetMessage());
+            spdlog::debug("Message published to SNS topic {} with worker ID {} ({} rays, {} bytes)", topic_arn,
+                          target_id, chunk.size(), message.size());
+            return;
+        }
+
+        if (attempt < MAX_RETRIES)
+        {
+            int delay_ms = BASE_DELAY_MS * (1 << attempt); // Exponential backoff
+            spdlog::warn("Failed to publish message to SNS (attempt {}): {}. Retrying in {}ms...", attempt + 1,
+                         outcome.GetError().GetMessage(), delay_ms);
+            std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
         }
         else
         {
-            spdlog::info("Message published to SNS topic {} with worker ID {}", topic_arn, target_id);
+            // After max retries, keep trying with max delay
+            spdlog::error("Failed to publish message to SNS (attempt {}): {}. Retrying in {}ms...", attempt + 1,
+                          outcome.GetError().GetMessage(), BASE_DELAY_MS * (1 << MAX_RETRIES));
+            std::this_thread::sleep_for(std::chrono::milliseconds(BASE_DELAY_MS * (1 << MAX_RETRIES)));
         }
+    }
+}
+
+void sns_send_batch(const std::string &topic_arn, const std::string &source_worker_id, const std::string &target_id,
+                    const std::vector<models::cloud_ray> &rays)
+{
+    if (rays.empty())
+    {
+        return;
+    }
+
+    Aws::SNS::SNSClient sns_client;
+
+    std::vector<models::cloud_ray> current_batch;
+    // Base overhead for {"rays":[]}
+    constexpr size_t BASE_JSON_OVERHEAD = 12;
+    size_t current_size = BASE_JSON_OVERHEAD;
+
+    for (const auto &ray : rays)
+    {
+        nlohmann::json ray_json = ray;
+        std::string ray_str = ray_json.dump();
+        // +1 for comma separator between rays (except first ray)
+        size_t ray_size_with_separator = ray_str.size() + (current_batch.empty() ? 0 : 1);
+
+        // Check if adding this ray would exceed the limit
+        if (current_size + ray_size_with_separator > models::SNS_USABLE_SIZE)
+        {
+            // Current batch is full, send it
+            if (!current_batch.empty())
+            {
+                sns_publish_message(sns_client, topic_arn, source_worker_id, target_id, current_batch);
+                current_batch.clear();
+                current_size = BASE_JSON_OVERHEAD;
+            }
+
+            // Single ray exceeding ~255KB is impossible given cloud_ray structure (~500-800 bytes)
+            assert(BASE_JSON_OVERHEAD + ray_str.size() <= models::SNS_USABLE_SIZE &&
+                   "Single ray exceeds SNS message size limit - this should never happen");
+
+            ray_size_with_separator = ray_str.size(); // No comma for first ray in new batch
+        }
+
+        current_batch.push_back(ray);
+        current_size += ray_size_with_separator;
+    }
+
+    // Send remaining rays
+    if (!current_batch.empty())
+    {
+        sns_publish_message(sns_client, topic_arn, source_worker_id, target_id, current_batch);
     }
 }
 

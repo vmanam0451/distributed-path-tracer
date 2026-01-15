@@ -3,7 +3,9 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_ec2 as ec2,
     aws_iam as iam,
-    Duration
+    aws_logs as logs,
+    Duration,
+    RemovalPolicy
 )
 
 from cdk.config import Config
@@ -93,6 +95,21 @@ class EcsStack(Stack):
             ]
         )
 
+        worker_log_group = logs.LogGroup(
+            self, "WorkerLogGroup",
+            log_group_name="/ecs/distributed-path-tracer-worker",
+            removal_policy=RemovalPolicy.DESTROY,
+            retention=logs.RetentionDays.ONE_WEEK
+        )
+
+        task_execution_role.add_to_policy(iam.PolicyStatement(
+            actions=[
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            resources=[worker_log_group.log_group_arn, f"{worker_log_group.log_group_arn}:*"]
+        ))
+
         task_role = iam.Role(
             self, "TaskRole",
             assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com")
@@ -125,7 +142,10 @@ class EcsStack(Stack):
         container = task_definition.add_container(
             "worker",
             image=ecs.ContainerImage.from_asset("../path-tracer-core"),
-            logging=ecs.LogDrivers.aws_logs(stream_prefix="DistributedPathTracerWorker"),
+            logging=ecs.LogDrivers.aws_logs(
+                stream_prefix="worker",
+                log_group=worker_log_group
+            ),
             stop_timeout=Duration.seconds(10),
         )
 

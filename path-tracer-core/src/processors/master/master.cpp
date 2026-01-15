@@ -36,6 +36,7 @@ void master::run()
         uint32_t total_rays = resolution.x * resolution.y * sample_count;
         while (m_completed_rays < total_rays)
         {
+            spdlog::info("Completed Rays: {} Total rays to process: {}", m_completed_rays.load(), total_rays);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 

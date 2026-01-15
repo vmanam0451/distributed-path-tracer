@@ -1,7 +1,7 @@
 #pragma once
 
 #include <aws/core/Aws.h>
-#include <aws/lambda-runtime/runtime.h>
+#include <aws/core/client/ClientConfiguration.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/PutObjectRequest.h>
