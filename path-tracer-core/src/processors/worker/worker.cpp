@@ -46,17 +46,15 @@ void worker::run()
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
     spdlog::info("Hardware Threads: {}", hardware_threads);
-    unsigned int available_threads = std::max(1u, hardware_threads - 4);
+    unsigned int available_threads = std::max(1u, hardware_threads - 4 - 2);
 
     unsigned int shading_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.4)));
     unsigned int object_intersection_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.3)));
     unsigned int direct_lighting_intersection_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int object_intersection_result_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int direct_lighting_intersection_result_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.3)));
+    unsigned int object_intersection_result_threads = 1;
+    unsigned int direct_lighting_intersection_result_threads = 1;
 
     std::vector<std::thread> threads;
 

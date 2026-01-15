@@ -2,20 +2,18 @@ from aws_cdk import (
     Stack,
     aws_lambda as _lambda,
     aws_iam as iam,
-    aws_ecr as ecr,
     aws_apigateway as apigw,
     aws_ecs as ecs,
     aws_ec2 as ec2,
     Duration
 )
 
-from config import Config
+from cdk.config import Config
 from constructs import Construct
 
 class LambdaStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, 
-                 ecr_repository: ecr.IRepository, 
                  ecs_cluster: ecs.ICluster,
                  task_definition: ecs.TaskDefinition,
                  vpc: ec2.IVpc,
@@ -25,13 +23,11 @@ class LambdaStack(Stack):
 
         subnet_ids = [subnet.subnet_id for subnet in vpc.isolated_subnets]
 
-        lambda_function = _lambda.Function(
+        lambda_function = _lambda.DockerImageFunction(
             self, "DistributedPathTracerFunction",
             function_name="DistributedPathTracerFunction",
             architecture=_lambda.Architecture.X86_64,
-            code=_lambda.EcrImageCode.from_ecr(ecr_repository, tag_or_digest="preprocessor-latest"),
-            handler=_lambda.Handler.FROM_IMAGE,
-            runtime=_lambda.Runtime.FROM_IMAGE,
+            code=_lambda.DockerImageCode.from_image_asset("../path-tracer-preprocessor/preprocessor-function"),
             memory_size=1024,
             timeout=Duration.minutes(15),
             environment={

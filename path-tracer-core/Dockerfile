@@ -1,4 +1,4 @@
-FROM amd64/amazonlinux:latest
+FROM --platform=linux/amd64 amazonlinux:latest
 
 RUN yum update -y && yum install -y git
 RUN yum install -y zip unzip tar

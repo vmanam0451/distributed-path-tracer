@@ -3,15 +3,15 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_ec2 as ec2,
     aws_iam as iam,
-    aws_ecr as ecr,
+    Duration
 )
 
-from config import Config
+from cdk.config import Config
 from constructs import Construct
 
 class EcsStack(Stack):
     
-    def __init__(self, scope: Construct, construct_id: str, ecr_repository: ecr.IRepository, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         vpc = ec2.Vpc(
@@ -63,7 +63,7 @@ class EcsStack(Stack):
 
         vpc.add_interface_endpoint(
             "ECRApiEndpoint",
-            service=ec2.InterfaceVpcEndpointAwsService.ECR_API,
+            service=ec2.InterfaceVpcEndpointAwsService.ECR,
             security_groups=[endpoint_security_group]
         )
 
@@ -124,8 +124,9 @@ class EcsStack(Stack):
 
         container = task_definition.add_container(
             "worker",
-            image=ecs.ContainerImage.from_ecr_repository(ecr_repository, "worker-latest"),
-            logging=ecs.LogDrivers.aws_logs(stream_prefix="DistributedPathTracerWorker")
+            image=ecs.ContainerImage.from_asset("../path-tracer-core"),
+            logging=ecs.LogDrivers.aws_logs(stream_prefix="DistributedPathTracerWorker"),
+            stop_timeout=Duration.seconds(10),
         )
 
         self.cluster = cluster
