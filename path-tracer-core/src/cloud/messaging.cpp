@@ -34,7 +34,6 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
             }
             for (const auto &message : messages)
             {
-                bool processed_successfully = false;
                 try
                 {
                     auto envelope = json::parse(message.GetBody());
@@ -51,13 +50,11 @@ void sqs_poll(const models::SQSOptions &options, std::atomic<bool> &m_should_ter
                             callback(ray);
                         }
                         spdlog::info("Finished processing {} rays from SQS message", rays.size());
-                        processed_successfully = true;
                     }
                     else if (message_json.contains("terminate"))
                     {
                         m_should_terminate = true;
                         spdlog::info("Received termination signal via SQS.");
-                        processed_successfully = true;
                     }
                     else
                     {

@@ -93,8 +93,13 @@ void worker::run()
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
+    spdlog::info("Termination signal received, stopping worker...");
+    m_batch_sender.stop();
+
     for (auto &thread : threads)
         thread.join();
+
+    spdlog::info("All worker threads joined, exiting.");
 }
 
 void worker::download_gltf_file()

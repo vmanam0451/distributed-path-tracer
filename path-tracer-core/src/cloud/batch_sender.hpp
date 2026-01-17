@@ -25,6 +25,7 @@ class batch_sender
 
     void enqueue_ray(const models::cloud_ray &ray, const std::string &target_id);
     void flush_loop();
+    void stop();
 
   private:
     void send_batch(const std::string &target_id, const std::vector<models::cloud_ray> &rays);

@@ -5,6 +5,7 @@
 #include "models/messaging.hpp"
 #include "path_tracer/core/utils.hpp"
 #include "path_tracer/image/image.hpp"
+#include <chrono>
 
 namespace processors
 {
@@ -37,7 +38,7 @@ void master::run()
         while (m_completed_rays < total_rays)
         {
             spdlog::info("Completed Rays: {} Total rays to process: {}", m_completed_rays.load(), total_rays);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::seconds(5));
         }
 
         m_should_terminate = true;

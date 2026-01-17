@@ -61,4 +61,10 @@ void batch_sender::send_batch(const std::string &target_id, const std::vector<mo
 
     cloud::sns_send_batch(m_topic_arn, m_source_worker_id, target_id, rays);
 }
+
+void batch_sender::stop()
+{
+    m_terminate = true;
+    m_cv.notify_all();
+}
 } // namespace cloud
