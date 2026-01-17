@@ -3,10 +3,8 @@
 #include <path_tracer/core/utils.hpp>
 #include <thread>
 
-#include "cloud/messaging.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/intersect_result.hpp"
-#include "models/messaging.hpp"
 #include "path_tracer/util/rand_cone_vec.hpp"
 #include "worker.hpp"
 
@@ -66,6 +64,7 @@ void worker::process_object_intersections()
         }
 
         calculate_object_intersection(ray);
+        m_intersections_computed.fetch_add(1);
 
         // Add entry to ray in intersection map here. SQS, on rare occassions,
         // messages are delivered "at least once". Have to create an idempotent
@@ -79,7 +78,7 @@ void worker::process_object_intersections()
         }
 
         ray.type = models::ray_type::CALCULATE;
-        m_batch_sender.enqueue_ray(ray, models::WORKERS_ID);
+        m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
     }
 }
 
@@ -96,6 +95,7 @@ void worker::process_direct_lighting_intersections()
         }
 
         calculate_direct_lighting_intersection(ray);
+        m_direct_lighting_computed.fetch_add(1);
 
         {
             m_direct_lighting_intersection_result_queue.enqueue(ray);
@@ -104,7 +104,7 @@ void worker::process_direct_lighting_intersections()
         }
 
         ray.type = models::ray_type::CALCULATE;
-        m_batch_sender.enqueue_ray(ray, models::WORKERS_ID);
+        m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
     }
 }
 
@@ -170,7 +170,7 @@ void worker::process_object_intersection_results()
             else
             {
                 best_ray.type = models::ray_type::OWN;
-                m_batch_sender.enqueue_ray(best_ray, best_ray.worker_id);
+                m_tcp_peer->enqueue_ray(best_ray, best_ray.worker_id);
             }
         }
     }

@@ -4,12 +4,16 @@ from aws_cdk import (
     aws_ec2 as ec2,
     aws_iam as iam,
     aws_logs as logs,
+    aws_servicediscovery as servicediscovery,
     Duration,
     RemovalPolicy
 )
 
 from cdk.config import Config
 from constructs import Construct
+
+# Port for direct TCP communication between workers
+WORKER_TCP_PORT = 9000
 
 class EcsStack(Stack):
     
@@ -33,6 +37,13 @@ class EcsStack(Stack):
             description="Security group for ECS tasks"
         )
         
+        # Allow workers to communicate directly with each other via TCP
+        task_security_group.add_ingress_rule(
+            peer=task_security_group,
+            connection=ec2.Port.tcp(WORKER_TCP_PORT),
+            description="Allow TCP communication between workers"
+        )
+        
         endpoint_security_group = ec2.SecurityGroup(
             self, "EndpointSecurityGroup",
             vpc=vpc,
@@ -49,18 +60,6 @@ class EcsStack(Stack):
         vpc.add_gateway_endpoint(
             "S3Endpoint",
             service=ec2.GatewayVpcEndpointAwsService.S3
-        )
-
-        vpc.add_interface_endpoint(
-            "SQSEndpoint",
-            service=ec2.InterfaceVpcEndpointAwsService.SQS,
-            security_groups=[endpoint_security_group]
-        )
-
-        vpc.add_interface_endpoint(
-            "SNSEndpoint",
-            service=ec2.InterfaceVpcEndpointAwsService.SNS,
-            security_groups=[endpoint_security_group]
         )
 
         vpc.add_interface_endpoint(
@@ -81,10 +80,25 @@ class EcsStack(Stack):
             security_groups=[endpoint_security_group]
         )
         
+        # Add Cloud Map endpoint for service discovery API access
+        vpc.add_interface_endpoint(
+            "ServiceDiscoveryEndpoint",
+            service=ec2.InterfaceVpcEndpointAwsService.CLOUD_MAP_SERVICE_DISCOVERY,
+            security_groups=[endpoint_security_group]
+        )
+        
         cluster = ecs.Cluster(
             self, "DistributedPathTracerCluster",
             cluster_name="DistributedPathTracerCluster",
             vpc=vpc
+        )
+        
+        # Add Cloud Map namespace for service discovery
+        # Using HTTP namespace because DiscoverInstances API only works with HTTP namespaces
+        # (DNS namespaces require DNS queries for discovery, not the DiscoverInstances API)
+        namespace = cluster.add_default_cloud_map_namespace(
+            name="pathtracer.local",
+            type=servicediscovery.NamespaceType.HTTP
         )
 
         task_execution_role = iam.Role(
@@ -119,15 +133,20 @@ class EcsStack(Stack):
             actions=["s3:GetObject", "s3:PutObject"],
             resources=[Config.get_s3_object_arn()]
         ))
-
+        
+        # Cloud Map permissions for service discovery (required for direct TCP communication)
         task_role.add_to_policy(iam.PolicyStatement(
-            actions=["sns:Publish"],
-            resources=[Config.get_sns_topic_arn(self.region, self.account)]
-        ))
-
-        task_role.add_to_policy(iam.PolicyStatement(
-            actions=["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:Get*"],
-            resources=[Config.get_sqs_queue_arn(self.region, self.account)]
+            actions=[
+                "servicediscovery:RegisterInstance",
+                "servicediscovery:DeregisterInstance",
+                "servicediscovery:DiscoverInstances",
+                "servicediscovery:GetInstancesHealthStatus",
+                "servicediscovery:GetOperation",
+                "servicediscovery:GetNamespace",
+                "servicediscovery:GetService",
+                "servicediscovery:ListInstances"
+            ],
+            resources=["*"]
         ))
 
         task_definition = ecs.FargateTaskDefinition(
@@ -148,8 +167,17 @@ class EcsStack(Stack):
             ),
             stop_timeout=Duration.seconds(10),
         )
+        
+        # Expose TCP port for worker communication
+        container.add_port_mappings(
+            ecs.PortMapping(
+                container_port=WORKER_TCP_PORT,
+                protocol=ecs.Protocol.TCP
+            )
+        )
 
         self.cluster = cluster
         self.task_definition = task_definition
         self.task_security_group = task_security_group
         self.vpc = vpc
+        self.namespace = namespace

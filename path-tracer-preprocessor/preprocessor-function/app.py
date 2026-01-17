@@ -41,127 +41,6 @@ def split_2d_grid_rectangular(width, height, num_workers):
     
     return workers
 
-def create_topic(sns_client, topic_name: str):
-    try:
-        # Check if topic already exists
-        response = sns_client.list_topics()
-        for topic in response.get('Topics', []):
-            arn = topic['TopicArn']
-            if arn.split(':')[-1] == topic_name:
-                print(f"Topic {topic_name} already exists, using existing topic")
-                return {'TopicArn': arn}
-        
-        response = sns_client.create_topic(Name=topic_name)
-        print(f"Created new topic {topic_name}")
-        return response
-    except Exception as e:
-        print(f"Error with SNS topic {topic_name}: {e}")
-        raise
-        
-def create_queues(sns_client, sqs_client, topic_arn, scene_name, worker_ids: List[int]):
-    def get_or_create_worker_queue(worker_id: str) -> str:
-        queue_name = f'{scene_name}-distributed-scene-worker-{worker_id}'
-        try:
-            try:
-                response = sqs_client.get_queue_url(QueueName=queue_name)
-                queue_url = response['QueueUrl']
-                print(f"Queue {queue_name} already exists, using existing queue")
-                
-                queue_attributes = sqs_client.get_queue_attributes(
-                    QueueUrl=queue_url, 
-                    AttributeNames=['QueueArn']
-                )
-                queue_arn = queue_attributes['Attributes']['QueueArn']
-                
-                subscriptions = sns_client.list_subscriptions_by_topic(TopicArn=topic_arn)
-                already_subscribed = any(
-                    sub['Endpoint'] == queue_arn 
-                    for sub in subscriptions.get('Subscriptions', [])
-                )
-                
-                if not already_subscribed:
-                    _subscribe_queue_to_topic(queue_arn, worker_id)
-                    _set_queue_policy(queue_url, queue_arn)
-                
-                return queue_url
-            
-            except sqs_client.exceptions.QueueDoesNotExist:
-                response = sqs_client.create_queue(QueueName=queue_name)
-                queue_url = response['QueueUrl']
-                print(f"Created new queue {queue_name}")
-                
-                queue_attributes = sqs_client.get_queue_attributes(
-                    QueueUrl=queue_url, 
-                    AttributeNames=['QueueArn']
-                )
-                queue_arn = queue_attributes['Attributes']['QueueArn']
-                
-                _subscribe_queue_to_topic(queue_arn, worker_id)
-                _set_queue_policy(queue_url, queue_arn)
-                
-                return queue_url
-                
-        except Exception as e:
-            print(f"Error with SQS queue {queue_name}: {e}")
-            raise
-            
-    def _subscribe_queue_to_topic(queue_arn, worker_id):
-        if worker_id == 'master':
-            filter_policy = {'worker_id': ["MASTER"]}
-        else:
-            filter_policy = {
-                'worker_id': ['WORKERS', str(worker_id)],
-                'source_worker_id': [{'anything-but': [str(worker_id)]}]
-            }
-
-        sns_client.subscribe(
-            TopicArn=topic_arn,
-            Protocol='sqs',
-            Endpoint=queue_arn,
-            Attributes={
-                'FilterPolicy': json.dumps(filter_policy)
-            }
-        )
-        print(f"Subscribed queue {queue_arn} to topic {topic_arn}")
-            
-    def _set_queue_policy(queue_url, queue_arn):
-        queue_policy = {
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": { "Service": "sns.amazonaws.com" },
-                    "Action": "sqs:SendMessage",
-                    "Resource": queue_arn,
-                    "Condition": {
-                        "ArnEquals": {
-                            "aws:SourceArn": topic_arn
-                        }
-                    }
-                }
-            ]
-        }
-        
-        sqs_client.set_queue_attributes(
-            QueueUrl=queue_url,
-            Attributes={'Policy': json.dumps(queue_policy)}
-        )
-        
-    try:
-        worker_queues = {}
-    
-        master_queue_url = get_or_create_worker_queue('master')
-        worker_queues['master'] = master_queue_url
-
-        for worker_id in worker_ids:
-            queue_url = get_or_create_worker_queue(str(worker_id))
-            worker_queues[worker_id] = queue_url
-
-        return worker_queues
-    
-    except Exception as e:
-        print(f"Error creating queues: {e}")
-        raise
-
 def lambda_handler(event, context):
     try:
         function_input = json.loads(event['body'])
@@ -182,23 +61,40 @@ def lambda_handler(event, context):
         session = boto3.session.Session()
         AWS_REGION = session.region_name
 
-        # Always create topics and queues
-        print("Creating topic and queues...")
-        sns_client = session.client(
-            service_name='sns',
-            region_name=AWS_REGION,
-        )
+        # Cloud Map configuration for direct TCP communication
+        cloud_map_namespace = "pathtracer.local"
+        cloud_map_service = f"{scene_name}-workers"
+        
+        # Create Cloud Map service for this render job
+        namespace_id = os.environ.get('CLOUD_MAP_NAMESPACE_ID', '')
+        
+        if not namespace_id:
+            raise ValueError("CLOUD_MAP_NAMESPACE_ID environment variable is required")
+        
+        servicediscovery_client = boto3.client('servicediscovery', region_name=AWS_REGION)
+        service_id = None
+        
+        try:
+            # Create a service for this render job
+            # Note: HTTP namespaces don't use DnsConfig - discovery is done via DiscoverInstances API
+            service_response = servicediscovery_client.create_service(
+                Name=cloud_map_service,
+                NamespaceId=namespace_id
+            )
+            service_id = service_response['Service']['Id']
+            print(f"Created Cloud Map service: {cloud_map_service} with ID: {service_id}")
+        except servicediscovery_client.exceptions.ServiceAlreadyExists:
+            # Service exists, get its ID
+            services = servicediscovery_client.list_services(
+                Filters=[{'Name': 'NAMESPACE_ID', 'Values': [namespace_id]}]
+            )
+            for svc in services.get('Services', []):
+                if svc['Name'] == cloud_map_service:
+                    service_id = svc['Id']
+                    print(f"Using existing Cloud Map service: {cloud_map_service}")
+                    break
 
-        sqs_client = boto3.client(
-            service_name='sqs',
-            region_name=AWS_REGION,
-        )   
-    
-        sns_response = create_topic(sns_client, '{}-distributed-scene-topic'.format(scene_name))
-        topic_arn = sns_response['TopicArn']
-        worker_queues = create_queues(sns_client, sqs_client, topic_arn, scene_name, split_scene['split_work'].keys())
-
-        print("Created topic and queues")
+        print("Cloud Map service ready")
     
         worker_infos = {}
         sub_grid = split_2d_grid_rectangular(X, Y, num_workers)
@@ -210,15 +106,17 @@ def lambda_handler(event, context):
                 "scene_bucket": scene_bucket,
                 "scene_root": scene_key,
                 "worker_id": str(worker_id),
-                "sqs_queue_url": worker_queues.get(worker_id, ""),
-                "sns_topic_arn": topic_arn,
                 "num_workers": len(split_scene['split_work'].keys()),
                 "samples": samples,
                 "bounces": bounces,
                 "min_x": sub_grid[worker_id]["minX"],
                 "max_x": sub_grid[worker_id]["maxX"],
                 "min_y": sub_grid[worker_id]["minY"],
-                "max_y": sub_grid[worker_id]["maxY"]
+                "max_y": sub_grid[worker_id]["maxY"],
+                "cloud_map_namespace": cloud_map_namespace,
+                "cloud_map_service": cloud_map_service,
+                "cloud_map_service_id": service_id,
+                "aws_region": AWS_REGION
             }
         
             worker_infos[worker_id] = worker_info
@@ -231,15 +129,17 @@ def lambda_handler(event, context):
             "scene_bucket": scene_bucket,
             "scene_root": scene_key,
             "worker_id": "MASTER",
-            "sqs_queue_url": worker_queues.get('master', ""),
-            "sns_topic_arn": topic_arn,
             "num_workers": len(split_scene['split_work'].keys()),
             "samples": samples,
             "bounces": bounces,
             "min_x": 0,
             "max_x": X,
             "min_y": 0,
-            "max_y": Y
+            "max_y": Y,
+            "cloud_map_namespace": cloud_map_namespace,
+            "cloud_map_service": cloud_map_service,
+            "cloud_map_service_id": service_id,
+            "aws_region": AWS_REGION
         }
         
         for worker_id, worker_info in worker_infos.items():

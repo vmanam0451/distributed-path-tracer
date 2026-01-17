@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <path_tracer/geometry/ray.hpp>
 
 #include "intersect_result.hpp"
@@ -24,6 +25,11 @@ inline void from_json(const nlohmann::json &j, geometry::ray &r)
 
 namespace models
 {
+
+// Worker ID constants for routing
+const std::string MASTER_ID = "MASTER";
+const std::string WORKERS_ID = "WORKERS";
+
 enum ray_stage
 {
     INTERSECT,
@@ -57,8 +63,8 @@ struct cloud_ray
     geometry::ray ray;
     std::optional<geometry::ray> direct_light_ray;
 
-    float object_intersect_distance;
-    bool direct_light_intersect_result;
+    float object_intersect_distance = std::numeric_limits<float>::max();
+    bool direct_light_intersect_result = false;
 
     math::fvec3 color;
     float alpha;

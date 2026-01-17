@@ -34,8 +34,6 @@ struct worker_info
     std::string scene_bucket;
     std::string scene_root;
     std::string worker_id;
-    std::string sqs_queue_url;
-    std::string sns_topic_arn;
     int num_workers = 0;
 
     int samples = 0;
@@ -44,6 +42,12 @@ struct worker_info
     float min_y = 0.0f;
     float max_x = 0.0f;
     float max_y = 0.0f;
+
+    // Cloud Map configuration for direct TCP communication
+    std::string cloud_map_namespace;
+    std::string cloud_map_service;
+    std::string cloud_map_service_id; // Service ID needed for RegisterInstance API
+    std::string aws_region;           // AWS region for SDK endpoint configuration
 };
 
 inline void to_json(nlohmann::json &j, const worker_info &w)
@@ -52,15 +56,17 @@ inline void to_json(nlohmann::json &j, const worker_info &w)
                        {"scene_bucket", w.scene_bucket},
                        {"scene_root", w.scene_root},
                        {"worker_id", w.worker_id},
-                       {"sqs_queue_url", w.sqs_queue_url},
-                       {"sns_topic_arn", w.sns_topic_arn},
                        {"num_workers", w.num_workers},
                        {"samples", w.samples},
                        {"bounces", w.bounces},
                        {"min_x", w.min_x},
                        {"min_y", w.min_y},
                        {"max_x", w.max_x},
-                       {"max_y", w.max_y}};
+                       {"max_y", w.max_y},
+                       {"cloud_map_namespace", w.cloud_map_namespace},
+                       {"cloud_map_service", w.cloud_map_service},
+                       {"cloud_map_service_id", w.cloud_map_service_id},
+                       {"aws_region", w.aws_region}};
 }
 
 inline void from_json(const nlohmann::json &j, worker_info &w)
@@ -73,10 +79,6 @@ inline void from_json(const nlohmann::json &j, worker_info &w)
         j.at("scene_root").get_to(w.scene_root);
     if (j.contains("worker_id"))
         j.at("worker_id").get_to(w.worker_id);
-    if (j.contains("sqs_queue_url"))
-        j.at("sqs_queue_url").get_to(w.sqs_queue_url);
-    if (j.contains("sns_topic_arn"))
-        j.at("sns_topic_arn").get_to(w.sns_topic_arn);
     if (j.contains("num_workers"))
         j.at("num_workers").get_to(w.num_workers);
     if (j.contains("samples"))
@@ -91,5 +93,13 @@ inline void from_json(const nlohmann::json &j, worker_info &w)
         j.at("max_x").get_to(w.max_x);
     if (j.contains("max_y"))
         j.at("max_y").get_to(w.max_y);
+    if (j.contains("cloud_map_namespace"))
+        j.at("cloud_map_namespace").get_to(w.cloud_map_namespace);
+    if (j.contains("cloud_map_service"))
+        j.at("cloud_map_service").get_to(w.cloud_map_service);
+    if (j.contains("cloud_map_service_id"))
+        j.at("cloud_map_service_id").get_to(w.cloud_map_service_id);
+    if (j.contains("aws_region"))
+        j.at("aws_region").get_to(w.aws_region);
 }
 } // namespace models

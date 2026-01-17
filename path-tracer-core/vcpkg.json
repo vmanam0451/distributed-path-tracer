@@ -5,12 +5,12 @@
       "default-features": false,
       "features": [
         "s3",
-        "sns",
-        "sqs"
+        "servicediscovery"
       ]
     },
     "nlohmann-json",
     "spdlog",
-    "concurrentqueue"
+    "concurrentqueue",
+    "boost-asio"
   ]
 }

@@ -3,9 +3,7 @@
 #include <path_tracer/math/vec3.hpp>
 #include <path_tracer/util/rand_cone_vec.hpp>
 
-#include "cloud/messaging.hpp"
 #include "models/cloud_ray.hpp"
-#include "models/messaging.hpp"
 #include "worker.hpp"
 
 namespace processors
@@ -25,6 +23,8 @@ void worker::process_shading()
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
+
+        m_shading_computed.fetch_add(1);
 
         geometry::ray &current_ray = ray.ray;
         fvec3 &accumulated_color = ray.color;

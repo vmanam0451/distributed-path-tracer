@@ -9,22 +9,27 @@
 #include <path_tracer/math/vec3.hpp>
 #include <path_tracer/util/thread_pool.hpp>
 
-#include "cloud/messaging.hpp"
 #include "cloud/s3.hpp"
+#include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
-#include "models/messaging.hpp"
 #include "path_tracer/util/rand_cone_vec.hpp"
 
 namespace processors
 {
 worker::worker(const models::worker_info &worker_info)
-    : m_worker_info(worker_info), m_gltf_file_path(std::filesystem::path("/tmp/scene.gltf")),
-      m_batch_sender(worker_info.sns_topic_arn, worker_info.worker_id, 2000, std::chrono::milliseconds(100))
+    : m_worker_info(worker_info), m_gltf_file_path(std::filesystem::path("/tmp/scene.gltf"))
 {
+    // Initialize TCP peer for direct communication
+    spdlog::info("Initializing TCP peer for direct communication");
+    m_tcp_peer = std::make_shared<cloud::tcp_peer>(worker_info.worker_id, cloud::DEFAULT_TCP_PORT);
 }
 
 worker::~worker()
 {
+    if (m_tcp_peer)
+    {
+        m_tcp_peer->stop();
+    }
 }
 
 void worker::run()
@@ -42,13 +47,30 @@ void worker::run()
     this->sample_count = info.samples;
     this->bounce_count = info.bounces;
 
+    // Start TCP peer for direct worker-to-worker communication
+    // Expected peers = (num_workers - 1) other workers + 1 master = num_workers
+    int expected_peers = m_worker_info.num_workers;
+    spdlog::info("Starting TCP peer for worker {} (expecting {} peers)", m_worker_info.worker_id, expected_peers);
+    m_tcp_peer->set_ray_callback([this](models::cloud_ray &ray) { process_ray_from_queue(ray); });
+    m_tcp_peer->set_terminate_callback([this]() { m_should_terminate = true; });
+    m_tcp_peer->start(m_worker_info.cloud_map_namespace, m_worker_info.cloud_map_service,
+                      m_worker_info.cloud_map_service_id, expected_peers, m_worker_info.aws_region);
+
+    // Wait for all peers to be discovered and connected before starting work
+    if (!m_tcp_peer->wait_for_peers(120))
+    {
+        spdlog::error("Failed to connect to all peers, aborting");
+        return;
+    }
+
     generate_rays();
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
     spdlog::info("Hardware Threads: {}", hardware_threads);
 
-    // Reserve 3 threads for: main thread, flush_loop, sqs_poll
-    unsigned int reserved_threads = 3;
+    // Reserve threads for: main, TCP IO (2+), tcp_peer flush
+    unsigned int tcp_io_threads = 2;
+    unsigned int reserved_threads = 1 + tcp_io_threads + 1; // main + TCP IO + tcp flush
     unsigned int available_threads = std::max(5u, hardware_threads - reserved_threads);
 
     unsigned int shading_threads = std::max(1u, available_threads / 3);
@@ -72,29 +94,43 @@ void worker::run()
     for (int i = 0; i < shading_threads; i++)
         threads.push_back(std::thread(&worker::process_shading, this));
 
-    threads.push_back(std::thread([&]() { m_batch_sender.flush_loop(); }));
+    // Flush thread is now internal to tcp_peer
 
-    models::SQSOptions sqs_options;
-    sqs_options.queueUrl = m_worker_info.sqs_queue_url;
-
-    threads.push_back(std::thread([&]() {
-        cloud::sqs_poll(sqs_options, m_should_terminate, [&](models::cloud_ray &ray) { process_ray_from_queue(ray); });
-    }));
-
-    spdlog::info("Hardware Threads {} Total Threads {},", hardware_threads, threads.size());
+    spdlog::info("Hardware Threads {} Total Threads {}", hardware_threads, threads.size());
 
     while (!m_should_terminate)
     {
-        spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, "
-                     "DIRECT_RESULT={}, SHADING={}",
+        auto tcp_stats = m_tcp_peer->get_stats();
+        
+        // Get pending result map sizes - rays waiting for ALL workers to respond
+        size_t pending_isect_results = 0;
+        size_t pending_direct_results = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
+            pending_isect_results = m_object_intersection_results.size();
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
+            pending_direct_results = m_direct_lighting_intersection_results.size();
+        }
+        
+        spdlog::info("Queues: ISECT={}, ISECT_RES={}, DIRECT={}, DIRECT_RES={}, SHADE={}",
                      m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
                      m_direct_lighting_intersection_queue.size_approx(),
                      m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        spdlog::info("Waiting: ISECT_WAIT={}, DIRECT_WAIT={} (rays waiting for all workers to respond)", 
+                     pending_isect_results, pending_direct_results);
+        spdlog::info("Stats: generated={}, intersect={}, direct={}, shade={}, from_net={}", m_rays_generated.load(),
+                     m_intersections_computed.load(), m_direct_lighting_computed.load(), m_shading_computed.load(),
+                     m_rays_from_network.load());
+        spdlog::info("TCP: enqueued={}, sent={}, received={}, batches={}, pending={}, failures={}, reconnects={}",
+                     tcp_stats.rays_enqueued, tcp_stats.rays_sent, tcp_stats.rays_received, tcp_stats.batches_sent,
+                     tcp_stats.pending_rays, tcp_stats.send_failures, tcp_stats.reconnections);
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 
     spdlog::info("Termination signal received, stopping worker...");
-    m_batch_sender.stop();
+    m_tcp_peer->stop();
 
     for (auto &thread : threads)
         thread.join();
@@ -149,6 +185,7 @@ void worker::generate_rays()
                 cloud_ray.worker_id = m_worker_info.worker_id;
 
                 map_ray_stage_to_queue(cloud_ray);
+                m_rays_generated.fetch_add(1);
             }
         }
     }
@@ -170,7 +207,7 @@ void worker::map_ray_stage_to_queue(const models::cloud_ray &ray)
         m_shading_queue.enqueue(ray);
         break;
     case models::ray_stage::ACCUMULATE:
-        m_batch_sender.enqueue_ray(ray, models::MASTER_ID);
+        m_tcp_peer->enqueue_ray(ray, models::MASTER_ID);
         break;
     default:
         break;
@@ -179,6 +216,8 @@ void worker::map_ray_stage_to_queue(const models::cloud_ray &ray)
 
 void worker::process_ray_from_queue(models::cloud_ray &ray)
 {
+    m_rays_from_network.fetch_add(1);
+
     if (ray.type == models::ray_type::RESOLVE)
     {
         if (ray.stage == models::ray_stage::INTERSECT)
@@ -210,7 +249,7 @@ void worker::process_ray_from_queue(models::cloud_ray &ray)
         }
 
         ray.type = models::ray_type::RESOLVE;
-        m_batch_sender.enqueue_ray(ray, orig_worker);
+        m_tcp_peer->enqueue_ray(ray, orig_worker);
     }
     else if (ray.type == models::ray_type::OWN)
     {

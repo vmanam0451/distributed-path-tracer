@@ -5,9 +5,10 @@
 #include <sys/types.h>
 
 #include <cstdint>
+#include <memory>
 
-#include "cloud/batch_sender.hpp"
 #include "cloud/s3.hpp"
+#include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/work_info.hpp"
 #include "pch.hpp"
@@ -73,7 +74,8 @@ class worker : public application
 
     std::atomic<bool> m_should_terminate;
 
-    cloud::batch_sender m_batch_sender;
+    // TCP peer for direct worker-to-worker communication
+    std::shared_ptr<cloud::tcp_peer> m_tcp_peer;
 
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_queue;
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_result_queue;
@@ -88,5 +90,12 @@ class worker : public application
 
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
     std::mutex m_direct_lighting_intersection_results_mutex;
+
+    // Statistics
+    std::atomic<uint64_t> m_rays_generated{0};
+    std::atomic<uint64_t> m_intersections_computed{0};
+    std::atomic<uint64_t> m_direct_lighting_computed{0};
+    std::atomic<uint64_t> m_shading_computed{0};
+    std::atomic<uint64_t> m_rays_from_network{0};
 };
 } // namespace processors
