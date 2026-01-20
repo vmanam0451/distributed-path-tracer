@@ -14,7 +14,7 @@ void worker::calculate_object_intersection(models::cloud_ray &ray)
 {
     auto result = m_scene.intersect_min_result(ray.ray);
     ray.object_intersect_distance = result.distance;
-
+   
     if (result.hit)
     {
         auto sun_light = m_scene.m_sun_light;
@@ -66,13 +66,10 @@ void worker::process_object_intersections()
         calculate_object_intersection(ray);
         m_intersections_computed.fetch_add(1);
 
-        // Add entry to ray in intersection map here. SQS, on rare occassions,
-        // messages are delivered "at least once". Have to create an idempotent
-        // system. By adding to the map here, can remove the check in the results
-        // method. If results worker gets an id not in map, just drop it.
-
+        // Add entry to map with count=1 (this worker's result)
+        // Don't enqueue to result queue - that's only for remote results
+        // The result processor will finalize when count reaches num_workers
         {
-            m_object_intersection_result_queue.enqueue(ray);
             std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
             m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }
@@ -97,8 +94,9 @@ void worker::process_direct_lighting_intersections()
         calculate_direct_lighting_intersection(ray);
         m_direct_lighting_computed.fetch_add(1);
 
+        // Add entry to map with count=1 (this worker's result)
+        // Don't enqueue to result queue - that's only for remote results
         {
-            m_direct_lighting_intersection_result_queue.enqueue(ray);
             std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
             m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }

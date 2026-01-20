@@ -101,7 +101,7 @@ void worker::run()
     while (!m_should_terminate)
     {
         auto tcp_stats = m_tcp_peer->get_stats();
-        
+
         // Get pending result map sizes - rays waiting for ALL workers to respond
         size_t pending_isect_results = 0;
         size_t pending_direct_results = 0;
@@ -113,12 +113,12 @@ void worker::run()
             std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
             pending_direct_results = m_direct_lighting_intersection_results.size();
         }
-        
+
         spdlog::info("Queues: ISECT={}, ISECT_RES={}, DIRECT={}, DIRECT_RES={}, SHADE={}",
                      m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
                      m_direct_lighting_intersection_queue.size_approx(),
                      m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
-        spdlog::info("Waiting: ISECT_WAIT={}, DIRECT_WAIT={} (rays waiting for all workers to respond)", 
+        spdlog::info("Waiting: ISECT_WAIT={}, DIRECT_WAIT={} (rays waiting for all workers to respond)",
                      pending_isect_results, pending_direct_results);
         spdlog::info("Stats: generated={}, intersect={}, direct={}, shade={}, from_net={}", m_rays_generated.load(),
                      m_intersections_computed.load(), m_direct_lighting_computed.load(), m_shading_computed.load(),
@@ -149,6 +149,10 @@ void worker::generate_rays()
 {
     using namespace math;
 
+    // Use full image resolution for correct NDC calculation
+    fvec2 full_resolution(m_worker_info.image_width, m_worker_info.image_height);
+    float ratio = static_cast<float>(full_resolution.x) / full_resolution.y;
+
     for (uint32_t x = m_worker_info.min_x; x <= m_worker_info.max_x; x++)
     {
         for (uint32_t y = m_worker_info.min_y; y <= m_worker_info.max_y; y++)
@@ -169,9 +173,8 @@ void worker::generate_rays()
                     aa_offset = fvec2(core::rand(), core::rand());
                 }
 
-                fvec2 ndc = ((fvec2(pixel) + aa_offset) / resolution) * 2 - fvec2::one;
+                fvec2 ndc = ((fvec2(pixel) + aa_offset) / full_resolution) * 2 - fvec2::one;
                 ndc.y = -ndc.y;
-                float ratio = static_cast<float>(resolution.x) / resolution.y;
 
                 geometry::ray ray = m_scene.m_camera->get_component<scene::camera>()->get_ray(ndc, ratio);
 

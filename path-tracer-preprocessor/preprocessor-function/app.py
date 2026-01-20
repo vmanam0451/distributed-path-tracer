@@ -11,33 +11,22 @@ import os
 from preprocess.preprocessor import Preprocessor
 
 def split_2d_grid_rectangular(width, height, num_workers):
-    cols = int(math.ceil(math.sqrt(num_workers)))
-    rows = int(math.ceil(num_workers / cols))
-    
+    """
+    Split the image into horizontal strips, one per worker.
+    This ensures all pixels are covered regardless of num_workers.
+    """
     workers = {}
-    worker_id = 1
     
-    for row in range(rows):
-        if worker_id > num_workers:
-            break
-            
-        for col in range(cols):
-            if worker_id > num_workers:
-                break
-                
-            x_start = (width * col) // cols
-            x_end = (width * (col + 1)) // cols - 1
-            y_start = (height * row) // rows
-            y_end = (height * (row + 1)) // rows - 1
-            
-            workers[worker_id] = {
-                "minX": x_start,
-                "maxX": x_end,
-                "minY": y_start,
-                "maxY": y_end
-            }
-            
-            worker_id += 1
+    for worker_id in range(1, num_workers + 1):
+        y_start = (height * (worker_id - 1)) // num_workers
+        y_end = (height * worker_id) // num_workers - 1
+        
+        workers[worker_id] = {
+            "minX": 0,
+            "maxX": width - 1,
+            "minY": y_start,
+            "maxY": y_end
+        }
     
     return workers
 
@@ -113,6 +102,8 @@ def lambda_handler(event, context):
                 "max_x": sub_grid[worker_id]["maxX"],
                 "min_y": sub_grid[worker_id]["minY"],
                 "max_y": sub_grid[worker_id]["maxY"],
+                "image_width": X,
+                "image_height": Y,
                 "cloud_map_namespace": cloud_map_namespace,
                 "cloud_map_service": cloud_map_service,
                 "cloud_map_service_id": service_id,
@@ -136,6 +127,8 @@ def lambda_handler(event, context):
             "max_x": X,
             "min_y": 0,
             "max_y": Y,
+            "image_width": X,
+            "image_height": Y,
             "cloud_map_namespace": cloud_map_namespace,
             "cloud_map_service": cloud_map_service,
             "cloud_map_service_id": service_id,

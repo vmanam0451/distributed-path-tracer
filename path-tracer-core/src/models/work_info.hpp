@@ -42,6 +42,8 @@ struct worker_info
     float min_y = 0.0f;
     float max_x = 0.0f;
     float max_y = 0.0f;
+    int image_width = 640;
+    int image_height = 480;
 
     // Cloud Map configuration for direct TCP communication
     std::string cloud_map_namespace;
@@ -63,6 +65,8 @@ inline void to_json(nlohmann::json &j, const worker_info &w)
                        {"min_y", w.min_y},
                        {"max_x", w.max_x},
                        {"max_y", w.max_y},
+                       {"image_width", w.image_width},
+                       {"image_height", w.image_height},
                        {"cloud_map_namespace", w.cloud_map_namespace},
                        {"cloud_map_service", w.cloud_map_service},
                        {"cloud_map_service_id", w.cloud_map_service_id},
@@ -93,6 +97,10 @@ inline void from_json(const nlohmann::json &j, worker_info &w)
         j.at("max_x").get_to(w.max_x);
     if (j.contains("max_y"))
         j.at("max_y").get_to(w.max_y);
+    if (j.contains("image_width"))
+        j.at("image_width").get_to(w.image_width);
+    if (j.contains("image_height"))
+        j.at("image_height").get_to(w.image_height);
     if (j.contains("cloud_map_namespace"))
         j.at("cloud_map_namespace").get_to(w.cloud_map_namespace);
     if (j.contains("cloud_map_service"))
