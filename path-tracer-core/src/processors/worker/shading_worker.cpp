@@ -24,8 +24,6 @@ void worker::process_shading()
             continue;
         }
 
-        m_shading_computed.fetch_add(1);
-
         geometry::ray &current_ray = ray.ray;
         fvec3 &accumulated_color = ray.color;
         fvec3 &throughput = ray.scale;

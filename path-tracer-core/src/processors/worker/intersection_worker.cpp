@@ -14,7 +14,7 @@ void worker::calculate_object_intersection(models::cloud_ray &ray)
 {
     auto result = m_scene.intersect_min_result(ray.ray);
     ray.object_intersect_distance = result.distance;
-   
+
     if (result.hit)
     {
         auto sun_light = m_scene.m_sun_light;
@@ -64,16 +64,8 @@ void worker::process_object_intersections()
         }
 
         calculate_object_intersection(ray);
-        m_intersections_computed.fetch_add(1);
-
-        // Add entry to map with count=1 (this worker's result)
-        // Don't enqueue to result queue - that's only for remote results
-        // The result processor will finalize when count reaches num_workers
-        {
-            std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
-            m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
-        }
-
+        m_object_intersection_result_queue.enqueue(ray);
+        
         ray.type = models::ray_type::CALCULATE;
         m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
     }
@@ -92,14 +84,7 @@ void worker::process_direct_lighting_intersections()
         }
 
         calculate_direct_lighting_intersection(ray);
-        m_direct_lighting_computed.fetch_add(1);
-
-        // Add entry to map with count=1 (this worker's result)
-        // Don't enqueue to result queue - that's only for remote results
-        {
-            std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
-            m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
-        }
+        m_direct_lighting_intersection_result_queue.enqueue(ray);
 
         ray.type = models::ray_type::CALCULATE;
         m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
@@ -118,11 +103,9 @@ void worker::process_object_intersection_results()
             continue;
         }
 
-        std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
-
         if (m_object_intersection_results.find(ray.uuid) == m_object_intersection_results.end())
         {
-            continue;
+            m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }
 
         auto results = m_object_intersection_results[ray.uuid];
@@ -143,8 +126,6 @@ void worker::process_object_intersection_results()
         results = m_object_intersection_results[ray.uuid];
         if (results.first == m_worker_info.num_workers)
         {
-            m_object_intersection_results.erase(ray.uuid);
-
             auto best_ray = results.second;
             if (best_ray.object_intersect_distance == std::numeric_limits<float>::max())
             {
@@ -170,6 +151,8 @@ void worker::process_object_intersection_results()
                 best_ray.type = models::ray_type::OWN;
                 m_tcp_peer->enqueue_ray(best_ray, best_ray.worker_id);
             }
+
+            m_object_intersection_results.erase(ray.uuid);
         }
     }
 }
@@ -186,11 +169,9 @@ void worker::process_direct_lighting_intersection_results()
             continue;
         }
 
-        std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
-
         if (m_direct_lighting_intersection_results.find(ray.uuid) == m_direct_lighting_intersection_results.end())
         {
-            continue;
+            m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }
 
         auto results = m_direct_lighting_intersection_results[ray.uuid];
@@ -212,11 +193,11 @@ void worker::process_direct_lighting_intersection_results()
         results = m_direct_lighting_intersection_results[ray.uuid];
         if (results.first == m_worker_info.num_workers)
         {
-            m_direct_lighting_intersection_results.erase(ray.uuid);
-
             auto best_ray = results.second;
             best_ray.stage = models::ray_stage::SHADING;
             map_ray_stage_to_queue(best_ray);
+
+            m_direct_lighting_intersection_results.erase(ray.uuid);
         }
     }
 }

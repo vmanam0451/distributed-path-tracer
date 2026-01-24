@@ -62,7 +62,6 @@ master::master(const models::worker_info &worker_info)
 {
     this->m_worker_info = worker_info;
 
-    // Initialize TCP peer for communication with workers
     m_tcp_peer = std::make_shared<cloud::tcp_peer>(worker_info.worker_id, cloud::DEFAULT_TCP_PORT);
 }
 
@@ -83,15 +82,12 @@ void master::run()
     this->m_completed_rays = 0;
     s_signal_received = false;
 
-    // Setup signal handlers for graceful shutdown
     setup_signal_handlers();
 
     pixels.resize(resolution.x);
     for (auto &column : pixels)
         column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
 
-    // Start TCP peer for receiving rays from workers
-    // Master expects to connect to all workers
     int expected_peers = m_worker_info.num_workers;
     spdlog::info("Starting TCP peer for master (expecting {} worker peers)", expected_peers);
     m_tcp_peer->set_ray_callback([this](models::cloud_ray &ray) { process_ray_from_queue(ray); });
@@ -99,7 +95,6 @@ void master::run()
     m_tcp_peer->start(m_worker_info.cloud_map_namespace, m_worker_info.cloud_map_service,
                       m_worker_info.cloud_map_service_id, expected_peers, m_worker_info.aws_region);
 
-    // Wait for all workers to connect before they start sending rays
     if (!m_tcp_peer->wait_for_peers(120))
     {
         spdlog::error("Failed to connect to all workers, aborting");
@@ -113,18 +108,13 @@ void master::run()
         uint32_t total_rays = resolution.x * resolution.y * sample_count;
         while (m_completed_rays < total_rays && !s_signal_received)
         {
-            auto tcp_stats = m_tcp_peer->get_stats();
             float progress = 100.0f * m_completed_rays.load() / total_rays;
             spdlog::info("Progress: {:.1f}% ({}/{} rays)", progress, m_completed_rays.load(), total_rays);
-            spdlog::info("TCP: received={}, accumulate_queue={}, pending={}, failures={}, reconnects={}",
-                         tcp_stats.rays_received, m_accumulate_queue.size_approx(), tcp_stats.pending_rays,
-                         tcp_stats.send_failures, tcp_stats.reconnections);
             std::this_thread::sleep_for(std::chrono::seconds(5));
         }
 
         m_should_terminate = true;
 
-        // Signal termination to all workers via TCP
         m_tcp_peer->send_terminate_all();
 
         if (s_signal_received)
@@ -142,7 +132,6 @@ void master::run()
 
     spdlog::info("All threads have completed execution.");
 
-    // Generate and upload image (either complete or partial)
     if (s_signal_received)
     {
         handle_termination_signal();

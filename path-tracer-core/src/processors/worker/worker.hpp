@@ -51,7 +51,6 @@ class worker : public application
     void process_ray_from_queue(models::cloud_ray &ray);
 
     std::vector<uint8_t> render() const;
-    math::fvec4 trace_iter(uint8_t initial_bounce, const geometry::ray &initial_ray) const;
 
     // TODO:
     /*
@@ -86,16 +85,6 @@ class worker : public application
     moodycamel::ConcurrentQueue<models::cloud_ray> m_shading_queue;
 
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_object_intersection_results;
-    std::mutex m_object_intersection_results_mutex;
-
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
-    std::mutex m_direct_lighting_intersection_results_mutex;
-
-    // Statistics
-    std::atomic<uint64_t> m_rays_generated{0};
-    std::atomic<uint64_t> m_intersections_computed{0};
-    std::atomic<uint64_t> m_direct_lighting_computed{0};
-    std::atomic<uint64_t> m_shading_computed{0};
-    std::atomic<uint64_t> m_rays_from_network{0};
 };
 } // namespace processors

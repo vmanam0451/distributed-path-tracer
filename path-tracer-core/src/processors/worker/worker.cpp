@@ -94,38 +94,14 @@ void worker::run()
     for (int i = 0; i < shading_threads; i++)
         threads.push_back(std::thread(&worker::process_shading, this));
 
-    // Flush thread is now internal to tcp_peer
-
     spdlog::info("Hardware Threads {} Total Threads {}", hardware_threads, threads.size());
 
     while (!m_should_terminate)
     {
-        auto tcp_stats = m_tcp_peer->get_stats();
-
-        // Get pending result map sizes - rays waiting for ALL workers to respond
-        size_t pending_isect_results = 0;
-        size_t pending_direct_results = 0;
-        {
-            std::lock_guard<std::mutex> lock(m_object_intersection_results_mutex);
-            pending_isect_results = m_object_intersection_results.size();
-        }
-        {
-            std::lock_guard<std::mutex> lock(m_direct_lighting_intersection_results_mutex);
-            pending_direct_results = m_direct_lighting_intersection_results.size();
-        }
-
         spdlog::info("Queues: ISECT={}, ISECT_RES={}, DIRECT={}, DIRECT_RES={}, SHADE={}",
                      m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
                      m_direct_lighting_intersection_queue.size_approx(),
                      m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
-        spdlog::info("Waiting: ISECT_WAIT={}, DIRECT_WAIT={} (rays waiting for all workers to respond)",
-                     pending_isect_results, pending_direct_results);
-        spdlog::info("Stats: generated={}, intersect={}, direct={}, shade={}, from_net={}", m_rays_generated.load(),
-                     m_intersections_computed.load(), m_direct_lighting_computed.load(), m_shading_computed.load(),
-                     m_rays_from_network.load());
-        spdlog::info("TCP: enqueued={}, sent={}, received={}, batches={}, pending={}, failures={}, reconnects={}",
-                     tcp_stats.rays_enqueued, tcp_stats.rays_sent, tcp_stats.rays_received, tcp_stats.batches_sent,
-                     tcp_stats.pending_rays, tcp_stats.send_failures, tcp_stats.reconnections);
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 
@@ -188,7 +164,6 @@ void worker::generate_rays()
                 cloud_ray.worker_id = m_worker_info.worker_id;
 
                 map_ray_stage_to_queue(cloud_ray);
-                m_rays_generated.fetch_add(1);
             }
         }
     }
@@ -219,8 +194,6 @@ void worker::map_ray_stage_to_queue(const models::cloud_ray &ray)
 
 void worker::process_ray_from_queue(models::cloud_ray &ray)
 {
-    m_rays_from_network.fetch_add(1);
-
     if (ray.type == models::ray_type::RESOLVE)
     {
         if (ray.stage == models::ray_stage::INTERSECT)
@@ -234,11 +207,6 @@ void worker::process_ray_from_queue(models::cloud_ray &ray)
     }
     else if (ray.type == models::ray_type::CALCULATE)
     {
-        if (ray.worker_id == m_worker_info.worker_id)
-        {
-            return;
-        }
-
         const auto orig_worker = ray.worker_id;
 
         if (ray.stage == models::ray_stage::INTERSECT)
