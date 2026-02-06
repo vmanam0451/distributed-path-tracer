@@ -580,7 +580,7 @@ void tcp_peer::send_batch_to_peer(const std::string &target_id, std::vector<mode
     // Serialize with binary format
     auto data = serialize_rays_binary(rays);
 
-    // Send with retry logic
+    // Send with retry logicpath-tracer-core/src/cloud/tcp_peer.cpp
     bool success = send_raw_message_sync(*conn, MessageType::RAY_BATCH, data);
 
     if (success)

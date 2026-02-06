@@ -80,7 +80,6 @@ class EcsStack(Stack):
             security_groups=[endpoint_security_group]
         )
         
-        # Add Cloud Map endpoint for service discovery API access
         vpc.add_interface_endpoint(
             "ServiceDiscoveryEndpoint",
             service=ec2.InterfaceVpcEndpointAwsService.CLOUD_MAP_SERVICE_DISCOVERY,
@@ -93,9 +92,6 @@ class EcsStack(Stack):
             vpc=vpc
         )
         
-        # Add Cloud Map namespace for service discovery
-        # Using HTTP namespace because DiscoverInstances API only works with HTTP namespaces
-        # (DNS namespaces require DNS queries for discovery, not the DiscoverInstances API)
         namespace = cluster.add_default_cloud_map_namespace(
             name="pathtracer.local",
             type=servicediscovery.NamespaceType.HTTP
@@ -134,12 +130,10 @@ class EcsStack(Stack):
             resources=[Config.get_s3_object_arn()]
         ))
         
-        # Cloud Map permissions for service discovery (required for direct TCP communication)
         task_role.add_to_policy(iam.PolicyStatement(
             actions=[
                 "servicediscovery:RegisterInstance",
                 "servicediscovery:DeregisterInstance",
-                "servicediscovery:DiscoverInstances",
                 "servicediscovery:GetInstancesHealthStatus",
                 "servicediscovery:GetOperation",
                 "servicediscovery:GetNamespace",
@@ -168,7 +162,6 @@ class EcsStack(Stack):
             stop_timeout=Duration.seconds(10),
         )
         
-        # Expose TCP port for worker communication
         container.add_port_mappings(
             ecs.PortMapping(
                 container_port=WORKER_TCP_PORT,
