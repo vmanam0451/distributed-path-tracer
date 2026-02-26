@@ -29,3 +29,6 @@ ENV PIPENV_VENV_IN_PROJECT=1
 # Install NPM & CDK
 RUN dnf install -y npm
 RUN npm install -g aws-cdk
+
+# Install Go
+RUN dnf install -y golang

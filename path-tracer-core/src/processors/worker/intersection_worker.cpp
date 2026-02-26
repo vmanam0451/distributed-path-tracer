@@ -65,7 +65,7 @@ void worker::process_object_intersections()
 
         calculate_object_intersection(ray);
         m_object_intersection_result_queue.enqueue(ray);
-        
+
         ray.type = models::ray_type::CALCULATE;
         m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
     }
