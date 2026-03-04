@@ -30,5 +30,10 @@ ENV PIPENV_VENV_IN_PROJECT=1
 RUN dnf install -y npm
 RUN npm install -g aws-cdk
 
-# Install Go
-RUN dnf install -y golang
+# Install Go 
+ARG GO_VERSION=1.26.0
+RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:$PATH"
+RUN go install golang.org/x/tools/gopls@latest
+
+RUN dnf install -y protobuf-compiler
