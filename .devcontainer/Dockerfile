@@ -35,5 +35,3 @@ ARG GO_VERSION=1.26.0
 RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:$PATH"
 RUN go install golang.org/x/tools/gopls@latest
-
-RUN dnf install -y protobuf-compiler
