@@ -26,8 +26,8 @@ RUN dnf install -y python3.9-pip
 RUN pip install --ignore-installed pipenv
 ENV PIPENV_VENV_IN_PROJECT=1
 
-# Install NPM & CDK
-RUN dnf install -y npm
+# Install Node.js 22, NPM & CDK
+RUN dnf install -y nodejs22 nodejs22-npm
 RUN npm install -g aws-cdk
 
 # Install Go 
