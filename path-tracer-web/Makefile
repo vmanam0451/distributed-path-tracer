@@ -1,6 +1,5 @@
 .PHONY: dev build
 
-
 dev:
 	cd path-tracer-backend && go run . & \
 	cd path-tracer-frontend && npm run dev & \

@@ -4,11 +4,19 @@ import (
 	"net/http"
 	"os"
 	"pathtracerbackend/handlers"
+	"strings"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: nil,
+		Skip: func(c *gin.Context) bool {
+			return !strings.HasPrefix(c.Request.URL.Path, "/api/render")
+		},
+	}))
 
 	api := router.Group("/api")
 	{

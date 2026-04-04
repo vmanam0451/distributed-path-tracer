@@ -13,8 +13,14 @@ interface Pixel {
 export default function RenderPage({ renderRequest }: { renderRequest: RenderRequest }) {
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const statusRef = useRef<HTMLParagraphElement>(null);
+    const fetchStarted = useRef(false);
 
     useEffect(() => {
+        // Prevent duplicate requests from React re-renders or strict mode double-mounting.
+        if (fetchStarted.current) return;
+        fetchStarted.current = true;
+
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext("2d");
@@ -28,6 +34,26 @@ export default function RenderPage({ renderRequest }: { renderRequest: RenderReq
             body: JSON.stringify(renderRequest),
             signal: controller.signal,
             onmessage(event: EventSourceMessage) {
+                if (event.event === "done") {
+                    if (statusRef.current) statusRef.current.textContent = "Render complete";
+                    controller.abort();
+                    return;
+                }
+                if (event.event === "keepalive" || event.event === "status") {
+                    if (event.event === "status") {
+                        const wrapper = JSON.parse(event.data) as { message: string };
+                        if (statusRef.current) statusRef.current.textContent = wrapper.message;
+                    }
+                    return;
+                }
+                if (event.event === "error") {
+                    const wrapper = JSON.parse(event.data) as { message: string };
+                    console.error("Server error:", wrapper.message);
+                    if (statusRef.current) statusRef.current.textContent = "Error: " + wrapper.message;
+                    return;
+                }
+                // renderUpdate events
+                if (statusRef.current) statusRef.current.textContent = "";
                 const wrapper = JSON.parse(event.data) as { message: string };
                 const pixel: Pixel = JSON.parse(wrapper.message);
                 const { x: r, y: g, z: b } = pixel.color;
@@ -39,14 +65,20 @@ export default function RenderPage({ renderRequest }: { renderRequest: RenderReq
             },
             onerror(err: Error) {
                 console.error("SSE error:", err);
+                throw err; // Stop fetchEventSource from auto-retrying
             },
+            onclose() {
+                throw new Error("Stream closed");
+            },
+            openWhenHidden: true, // Don't close/retry when tab loses focus
         });
 
         return () => controller.abort();
     }, [renderRequest]);
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-950">
+        <div className="flex items-center justify-center min-h-screen bg-white">
+            <p ref={statusRef} className="absolute top-4 text-black text-sm" />
             <canvas
                 ref={canvasRef}
                 width={renderRequest.X}
