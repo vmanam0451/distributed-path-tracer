@@ -1,6 +1,7 @@
 #include <cstdint>
 
 #include "master.hpp"
+#include "models/pixel.hpp"
 
 namespace processors
 {
@@ -59,6 +60,15 @@ void master::process_accumulation()
         pixels[x][y].alpha /= sample + 1;
 
         pixels[x][y].sample = sample + 1;
+
+        models::pixel pixel_data{
+            .X = static_cast<float>(x),
+            .Y = static_cast<float>(y),
+            .color = pixels[x][y].color,
+            .alpha = pixels[x][y].alpha,
+        };
+
+        cloud::sqs_send_message(m_worker_info.results_queue_url, nlohmann::json(pixel_data).dump(), false);
     }
 }
 } // namespace processors

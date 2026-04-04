@@ -35,7 +35,6 @@ def lambda_handler(event, context):
         function_input = json.loads(event['body'])
         scene_bucket = function_input['scene_bucket']
         scene_key = function_input['scene_key']
-        scene_name = function_input['scene_name']
         num_workers = function_input['num_workers']
         samples = function_input.get('samples', 50)
         bounces = function_input.get('bounces', 5)
@@ -76,6 +75,7 @@ def lambda_handler(event, context):
                 "cloud_map_namespace": cloud_map_namespace,
                 "cloud_map_service": cloud_map_service,
                 "cloud_map_service_id": cloud_map_service_id,
+                "results_queue_url": "",
                 "aws_region": AWS_REGION
             }
         
@@ -101,8 +101,8 @@ def lambda_handler(event, context):
             "cloud_map_namespace": cloud_map_namespace,
             "cloud_map_service": cloud_map_service,
             "cloud_map_service_id": cloud_map_service_id,
-            "aws_region": AWS_REGION,
-            "results_queue_url": results_queue
+            "results_queue_url": results_queue,
+            "aws_region": AWS_REGION
         }
         
         for worker_id, worker_info in worker_infos.items():

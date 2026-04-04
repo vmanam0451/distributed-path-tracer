@@ -65,7 +65,7 @@ func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessag
 
 		for _, message := range output.Messages {
 			log.Printf("Received message from SQS queue: %s", *message.Body)
-			if _, ok := message.MessageAttributes["terminate"]; ok {
+			if _, ok := message.MessageAttributes["Terminate"]; ok {
 				log.Printf("Termination message received, stopping SQS polling")
 				deleteSQSMessage(ctx, message, client, queueURL)
 				return nil

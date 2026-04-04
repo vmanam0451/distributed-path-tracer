@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cloud/sqs.hpp"
 #include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/work_info.hpp"

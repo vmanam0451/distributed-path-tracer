@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 FROM alpine:3.21
 WORKDIR /app
 COPY --from=backend /app/backend/server ./server
-COPY --from=frontend /app/frontend/dist ./path-tracer-frontend/dist # TODO: DIST PATH INCORRECT. MAIN.GO EXPECTS ../FRONTEND/DIST
+COPY --from=frontend /app/frontend/dist ./dist
 
 EXPOSE 8080
 CMD ["./server"]

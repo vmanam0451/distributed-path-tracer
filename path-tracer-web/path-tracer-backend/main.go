@@ -21,7 +21,7 @@ func main() {
 		api.POST("/render", handlers.Render)
 	}
 
-	distDir := "../path-tracer-frontend/dist"
+	distDir := "./dist"
 	if _, err := os.Stat(distDir); err == nil {
 		router.Static("/assets", distDir+"/assets")
 		router.StaticFile("/", distDir+"/index.html")

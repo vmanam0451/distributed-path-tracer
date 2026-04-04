@@ -66,10 +66,9 @@ func Render(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
-	// Stream results back to client using WebSocket or Server-Sent Events (SSE)
 	err = services.PollSQSQueue(ctx, queueURL, awsConfig, func(message string) {
-		// Process message and send updates to client
 		c.SSEvent("renderUpdate", gin.H{"message": message})
+
 		c.Writer.Flush() // Flush the response to ensure the client receives the update immediately
 	})
 
@@ -84,7 +83,6 @@ func createLambdaPayload(req renderRequest, namespaceName, serviceName, serviceI
 	return services.LambdaRequest{
 		SceneBucket: req.SceneBucket,
 		SceneKey: req.SceneKey,
-		SceneName: req.SceneName,
 		NumWorkers: req.NumWorkers,
 		NumSamples: req.NumSamples,
 		NumBounces: req.NumBounces,

@@ -3,30 +3,30 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 )
 
-
 type LambdaRequest struct {
-	SceneBucket string `json:"scene_bucket"`
-	SceneKey string `json:"scene_key"`
-	SceneName string `json:"scene_name"`
-	NumWorkers int `json:"num_workers"`
-	NumSamples int `json:"samples"`
-	NumBounces int `json:"bounces"`
-	X int `json:"X"`
-	Y int `json:"Y"`
+	SceneBucket       string `json:"scene_bucket"`
+	SceneKey          string `json:"scene_key"`
+	NumWorkers        int    `json:"num_workers"`
+	NumSamples        int    `json:"samples"`
+	NumBounces        int    `json:"bounces"`
+	X                 int    `json:"X"`
+	Y                 int    `json:"Y"`
 	CloudMapNamespace string `json:"cloud_map_namespace"`
-	CloudMapService string `json:"cloud_map_service"`
+	CloudMapService   string `json:"cloud_map_service"`
 	CloudMapServiceId string `json:"cloud_map_service_id"`
-	ResultsQueueURL string `json:"results_queue_url"`
+	ResultsQueueURL   string `json:"results_queue_url"`
 }
 
 func InvokePreprocessorLambda(ctx context.Context, lambdaArn string, lambdaRequest LambdaRequest, cfg aws.Config) error {
 	log.Println("Invoking Lambda function with payload:", lambdaRequest)
-	
+
 	client := lambda.NewFromConfig(cfg)
 	payload, err := payloadToJSON(lambdaRequest)
 	if err != nil {
@@ -35,8 +35,8 @@ func InvokePreprocessorLambda(ctx context.Context, lambdaArn string, lambdaReque
 	}
 
 	input := &lambda.InvokeInput{
-		FunctionName:	aws.String(lambdaArn),
-		Payload:		[]byte(payload),
+		FunctionName: aws.String(lambdaArn),
+		Payload:      []byte(payload),
 	}
 
 	output, err := client.Invoke(ctx, input)
@@ -47,7 +47,7 @@ func InvokePreprocessorLambda(ctx context.Context, lambdaArn string, lambdaReque
 
 	if output.FunctionError != nil {
 		log.Printf("Lambda function returned an error: %s", *output.FunctionError)
-		return err
+		return errors.New("Lambda function error: " + *output.FunctionError)
 	}
 
 	log.Printf("Lambda function invoked successfully: %v", output)
@@ -55,9 +55,14 @@ func InvokePreprocessorLambda(ctx context.Context, lambdaArn string, lambdaReque
 }
 
 func payloadToJSON(payload LambdaRequest) (string, error) {
-	b, err := json.Marshal(payload)
+	inner, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Failed to marshal Lambda payload: %v", err)
+		return "", err
+	}
+	wrapped := map[string]string{"body": string(inner)}
+	b, err := json.Marshal(wrapped)
+	if err != nil {
 		return "", err
 	}
 	return string(b), nil

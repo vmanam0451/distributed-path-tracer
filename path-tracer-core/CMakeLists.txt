@@ -55,7 +55,7 @@ set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 file(GLOB_RECURSE SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 
 find_package(spdlog CONFIG REQUIRED)
-find_package(AWSSDK REQUIRED COMPONENTS s3 servicediscovery)
+find_package(AWSSDK REQUIRED COMPONENTS s3 sqs servicediscovery)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(unofficial-concurrentqueue CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)

@@ -49,6 +49,7 @@ struct worker_info
     std::string cloud_map_namespace;
     std::string cloud_map_service;
     std::string cloud_map_service_id; // Service ID needed for RegisterInstance API
+    std::string results_queue_url;    // SQS queue URL for sending results to web app
     std::string aws_region;           // AWS region for SDK endpoint configuration
 };
 
@@ -70,6 +71,7 @@ inline void to_json(nlohmann::json &j, const worker_info &w)
                        {"cloud_map_namespace", w.cloud_map_namespace},
                        {"cloud_map_service", w.cloud_map_service},
                        {"cloud_map_service_id", w.cloud_map_service_id},
+                       {"results_queue_url", w.results_queue_url},
                        {"aws_region", w.aws_region}};
 }
 
@@ -107,6 +109,8 @@ inline void from_json(const nlohmann::json &j, worker_info &w)
         j.at("cloud_map_service").get_to(w.cloud_map_service);
     if (j.contains("cloud_map_service_id"))
         j.at("cloud_map_service_id").get_to(w.cloud_map_service_id);
+    if (j.contains("results_queue_url"))
+        j.at("results_queue_url").get_to(w.results_queue_url);
     if (j.contains("aws_region"))
         j.at("aws_region").get_to(w.aws_region);
 }

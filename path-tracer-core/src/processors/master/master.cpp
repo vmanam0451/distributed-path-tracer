@@ -1,9 +1,11 @@
 #include "master.hpp"
 #include "cloud/s3.hpp"
+#include "cloud/sqs.hpp"
 #include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
 #include "path_tracer/core/utils.hpp"
 #include "path_tracer/image/image.hpp"
+#include "path_tracer/math/math.hpp"
 #include <chrono>
 #include <csignal>
 
@@ -106,15 +108,19 @@ void master::run()
 
     threads.push_back(std::thread(([&]() {
         uint32_t total_rays = resolution.x * resolution.y * sample_count;
-        while (m_completed_rays < total_rays && !s_signal_received)
+        while (!s_signal_received)
         {
             float progress = 100.0f * m_completed_rays.load() / total_rays;
             spdlog::info("Progress: {:.1f}% ({}/{} rays)", progress, m_completed_rays.load(), total_rays);
+
+            if ((progress + 5) >= 100.0f)
+                break;
+
             std::this_thread::sleep_for(std::chrono::seconds(5));
         }
 
         m_should_terminate = true;
-
+        cloud::sqs_send_message(m_worker_info.results_queue_url, "", true);
         m_tcp_peer->send_terminate_all();
 
         if (s_signal_received)

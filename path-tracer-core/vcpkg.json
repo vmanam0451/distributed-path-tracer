@@ -5,6 +5,7 @@
       "default-features": false,
       "features": [
         "s3",
+        "sqs",
         "servicediscovery"
       ]
     },

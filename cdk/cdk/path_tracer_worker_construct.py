@@ -84,6 +84,12 @@ class PathTracerWorkerConstruct(Construct):
             service=ec2.InterfaceVpcEndpointAwsService.CLOUD_MAP_SERVICE_DISCOVERY,
             security_groups=[endpoint_security_group]
         )
+
+        vpc.add_interface_endpoint(
+            "SQSEndpoint",
+            service=ec2.InterfaceVpcEndpointAwsService.SQS,
+            security_groups=[endpoint_security_group]
+        )
         
         cluster = ecs.Cluster(
             self, "DistributedPathTracerCluster",
@@ -127,6 +133,11 @@ class PathTracerWorkerConstruct(Construct):
         task_role.add_to_policy(iam.PolicyStatement(
             actions=["s3:GetObject", "s3:PutObject"],
             resources=[Config.get_s3_object_arn()]
+        ))
+
+        task_role.add_to_policy(iam.PolicyStatement(
+            actions=["sqs:SendMessage"],
+            resources=["*"]
         ))
         
         task_role.add_to_policy(iam.PolicyStatement(
