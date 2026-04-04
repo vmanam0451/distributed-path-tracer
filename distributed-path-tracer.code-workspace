@@ -1,0 +1,20 @@
+{
+    "folders": [
+        {
+            "path": ".github"
+        },
+        {
+            "path": "cdk"
+        },
+        {
+            "path": "path-tracer-preprocessor"
+        },
+        {
+            "path": "path-tracer-core"
+        },
+        {
+            "path": "path-tracer-web"
+        }
+    ],
+    "settings": {}
+}

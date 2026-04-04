@@ -3,14 +3,13 @@ package main
 import (
 	"net/http"
 	"os"
-
+	"pathtracerbackend/handlers"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	router := gin.Default()
 
-	// API routes
 	api := router.Group("/api")
 	{
 		api.GET("/ping", func(c *gin.Context) {
@@ -18,9 +17,10 @@ func main() {
 				"message": "pong",
 			})
 		})
+
+		api.POST("/render", handlers.Render)
 	}
 
-	// Serve frontend static files in production
 	distDir := "../path-tracer-frontend/dist"
 	if _, err := os.Stat(distDir); err == nil {
 		router.Static("/assets", distDir+"/assets")

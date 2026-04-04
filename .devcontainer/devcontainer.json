@@ -23,8 +23,7 @@
         "ms-python.python",
         "amazonwebservices.aws-toolkit-vscode",
         "eamodio.gitlens",
-        "golang.go",
-        "drblury.protobuf-vsc"
+        "golang.go"
       ]
     }
   },

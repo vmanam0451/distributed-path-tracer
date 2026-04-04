@@ -41,6 +41,10 @@ def lambda_handler(event, context):
         bounces = function_input.get('bounces', 5)
         X = function_input.get('X', 640)
         Y = function_input.get('Y', 480)
+        cloud_map_namespace = function_input.get('cloud_map_namespace')
+        cloud_map_service = function_input.get('cloud_map_service')
+        cloud_map_service_id = function_input.get('cloud_map_service_id')
+        results_queue = function_input.get('results_queue_url')
     
         preprocessor = Preprocessor(scene_bucket=scene_bucket, scene_root=scene_key, num_workers=num_workers)    
         split_scene = preprocessor.get_split_scene()
@@ -48,43 +52,8 @@ def lambda_handler(event, context):
         print("Split Scene: {}".format(split_scene))
 
         session = boto3.session.Session()
-        AWS_REGION = session.region_name
+        AWS_REGION = session.region_name       
 
-        # Cloud Map configuration for direct TCP communication
-        cloud_map_namespace = "pathtracer.local"
-        cloud_map_service = f"{scene_name}-workers"
-        
-        # Create Cloud Map service for this render job
-        namespace_id = os.environ.get('CLOUD_MAP_NAMESPACE_ID', '')
-        
-        if not namespace_id:
-            raise ValueError("CLOUD_MAP_NAMESPACE_ID environment variable is required")
-        
-        servicediscovery_client = boto3.client('servicediscovery', region_name=AWS_REGION)
-        service_id = None
-        
-        try:
-            # Create a service for this render job
-            # Note: HTTP namespaces don't use DnsConfig - discovery is done via DiscoverInstances API
-            service_response = servicediscovery_client.create_service(
-                Name=cloud_map_service,
-                NamespaceId=namespace_id
-            )
-            service_id = service_response['Service']['Id']
-            print(f"Created Cloud Map service: {cloud_map_service} with ID: {service_id}")
-        except servicediscovery_client.exceptions.ServiceAlreadyExists:
-            # Service exists, get its ID
-            services = servicediscovery_client.list_services(
-                Filters=[{'Name': 'NAMESPACE_ID', 'Values': [namespace_id]}]
-            )
-            for svc in services.get('Services', []):
-                if svc['Name'] == cloud_map_service:
-                    service_id = svc['Id']
-                    print(f"Using existing Cloud Map service: {cloud_map_service}")
-                    break
-
-        print("Cloud Map service ready")
-    
         worker_infos = {}
         sub_grid = split_2d_grid_rectangular(X, Y, num_workers)
         print("Sub grid for workers: {}".format(sub_grid))
@@ -106,7 +75,7 @@ def lambda_handler(event, context):
                 "image_height": Y,
                 "cloud_map_namespace": cloud_map_namespace,
                 "cloud_map_service": cloud_map_service,
-                "cloud_map_service_id": service_id,
+                "cloud_map_service_id": cloud_map_service_id,
                 "aws_region": AWS_REGION
             }
         
@@ -131,8 +100,9 @@ def lambda_handler(event, context):
             "image_height": Y,
             "cloud_map_namespace": cloud_map_namespace,
             "cloud_map_service": cloud_map_service,
-            "cloud_map_service_id": service_id,
-            "aws_region": AWS_REGION
+            "cloud_map_service_id": cloud_map_service_id,
+            "aws_region": AWS_REGION,
+            "results_queue_url": results_queue
         }
         
         for worker_id, worker_info in worker_infos.items():

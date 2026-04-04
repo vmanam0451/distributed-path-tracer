@@ -2,7 +2,6 @@
 
 
 dev:
-	@trap 'kill %1 %2 2>/dev/null; exit 0' INT; \
 	cd path-tracer-backend && go run . & \
 	cd path-tracer-frontend && npm run dev & \
 	wait
