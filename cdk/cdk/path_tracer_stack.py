@@ -22,5 +22,7 @@ class PathTracerStack(Stack):
         
         web_app = WebAppConstruct(self, "WebAppConstruct",
                               lambda_function=preprocessor.lambda_function,
-                              namespace=worker.namespace)
+                              namespace=worker.namespace,
+                              ecs_cluster=worker.cluster,
+                              task_definition=worker.task_definition)
         

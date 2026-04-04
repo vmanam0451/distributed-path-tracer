@@ -26,3 +26,46 @@ func CreateCloudMapService(ctx context.Context, namespaceID, cloudMapService str
 	log.Printf("Cloud Map service created: %v", output)
 	return *output.Service.Id, nil
 }
+
+func DeregisterCloudMapInstances(ctx context.Context, serviceId string, cfg aws.Config) {
+	client := servicediscovery.NewFromConfig(cfg)
+
+	paginator := servicediscovery.NewListInstancesPaginator(client, &servicediscovery.ListInstancesInput{
+		ServiceId: aws.String(serviceId),
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			log.Printf("Failed to list Cloud Map instances for service %s: %v", serviceId, err)
+			return
+		}
+		for _, instance := range page.Instances {
+			_, err := client.DeregisterInstance(ctx, &servicediscovery.DeregisterInstanceInput{
+				ServiceId:  aws.String(serviceId),
+				InstanceId: instance.Id,
+			})
+			if err != nil {
+				log.Printf("Failed to deregister instance %s: %v", *instance.Id, err)
+			} else {
+				log.Printf("Deregistered Cloud Map instance: %s", *instance.Id)
+			}
+		}
+	}
+}
+
+func DeleteCloudMapService(ctx context.Context, serviceId string, cfg aws.Config) {
+	log.Printf("Deleting Cloud Map service: %s", serviceId)
+
+	DeregisterCloudMapInstances(ctx, serviceId, cfg)
+
+	client := servicediscovery.NewFromConfig(cfg)
+	_, err := client.DeleteService(ctx, &servicediscovery.DeleteServiceInput{
+		Id: aws.String(serviceId),
+	})
+	if err != nil {
+		log.Printf("Failed to delete Cloud Map service: %v", err)
+	} else {
+		log.Printf("Cloud Map service deleted: %s", serviceId)
+	}
+}

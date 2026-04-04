@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -22,6 +23,11 @@ type LambdaRequest struct {
 	CloudMapService   string `json:"cloud_map_service"`
 	CloudMapServiceId string `json:"cloud_map_service_id"`
 	ResultsQueueURL   string `json:"results_queue_url"`
+}
+
+type lambdaResponse struct {
+	StatusCode int    `json:"statusCode"`
+	Body       string `json:"body"`
 }
 
 func InvokePreprocessorLambda(ctx context.Context, lambdaArn string, lambdaRequest LambdaRequest, cfg aws.Config) error {
@@ -50,7 +56,18 @@ func InvokePreprocessorLambda(ctx context.Context, lambdaArn string, lambdaReque
 		return errors.New("Lambda function error: " + *output.FunctionError)
 	}
 
-	log.Printf("Lambda function invoked successfully: %v", output)
+	var resp lambdaResponse
+	if err := json.Unmarshal(output.Payload, &resp); err != nil {
+		log.Printf("Failed to parse Lambda response: %v", err)
+		return errors.New("failed to parse Lambda response")
+	}
+
+	if resp.StatusCode != 200 {
+		log.Printf("Lambda returned status %d: %s", resp.StatusCode, resp.Body)
+		return fmt.Errorf("Lambda returned status %d: %s", resp.StatusCode, resp.Body)
+	}
+
+	log.Printf("Lambda function invoked successfully")
 	return nil
 }
 
