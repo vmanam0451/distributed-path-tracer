@@ -1,17 +1,17 @@
 {
   "dependencies": [
-    "aws-lambda-cpp",
     {
       "name": "aws-sdk-cpp",
       "default-features": false,
       "features": [
         "s3",
-        "sns",
-        "sqs"
+        "sqs",
+        "servicediscovery"
       ]
     },
     "nlohmann-json",
     "spdlog",
-    "concurrentqueue"
+    "concurrentqueue",
+    "boost-asio"
   ]
 }

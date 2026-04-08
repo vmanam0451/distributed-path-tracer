@@ -9,22 +9,27 @@
 #include <path_tracer/math/vec3.hpp>
 #include <path_tracer/util/thread_pool.hpp>
 
-#include "cloud/messaging.hpp"
 #include "cloud/s3.hpp"
+#include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
-#include "models/messaging.hpp"
 #include "path_tracer/util/rand_cone_vec.hpp"
 
 namespace processors
 {
 worker::worker(const models::worker_info &worker_info)
+    : m_worker_info(worker_info), m_gltf_file_path(std::filesystem::path("/tmp/scene.gltf"))
 {
-    this->m_worker_info = worker_info;
-    this->m_gltf_file_path = std::filesystem::path("/tmp/scene.gltf");
+    // Initialize TCP peer for direct communication
+    spdlog::info("Initializing TCP peer for direct communication");
+    m_tcp_peer = std::make_shared<cloud::tcp_peer>(worker_info.worker_id, cloud::DEFAULT_TCP_PORT);
 }
 
 worker::~worker()
 {
+    if (m_tcp_peer)
+    {
+        m_tcp_peer->stop();
+    }
 }
 
 void worker::run()
@@ -42,21 +47,37 @@ void worker::run()
     this->sample_count = info.samples;
     this->bounce_count = info.bounces;
 
+    // Start TCP peer for direct worker-to-worker communication
+    // Expected peers = (num_workers - 1) other workers + 1 master = num_workers
+    int expected_peers = m_worker_info.num_workers;
+    spdlog::info("Starting TCP peer for worker {} (expecting {} peers)", m_worker_info.worker_id, expected_peers);
+    m_tcp_peer->set_ray_callback([this](models::cloud_ray &ray) { process_ray_from_queue(ray); });
+    m_tcp_peer->set_terminate_callback([this]() { m_should_terminate = true; });
+    m_tcp_peer->start(m_worker_info.cloud_map_namespace, m_worker_info.cloud_map_service,
+                      m_worker_info.cloud_map_service_id, expected_peers, m_worker_info.aws_region);
+
+    // Wait for all peers to be discovered and connected before starting work
+    if (!m_tcp_peer->wait_for_peers(120))
+    {
+        spdlog::error("Failed to connect to all peers, aborting");
+        return;
+    }
+
     generate_rays();
 
     unsigned int hardware_threads = std::thread::hardware_concurrency();
     spdlog::info("Hardware Threads: {}", hardware_threads);
-    unsigned int available_threads = std::max(1u, hardware_threads - 3);
 
-    unsigned int shading_threads = std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.4)));
-    unsigned int object_intersection_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int direct_lighting_intersection_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int object_intersection_result_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
-    unsigned int direct_lighting_intersection_result_threads =
-        std::max(1u, static_cast<unsigned int>(std::ceil(available_threads * 0.15)));
+    // Reserve threads for: main, TCP IO (2+), tcp_peer flush
+    unsigned int tcp_io_threads = 2;
+    unsigned int reserved_threads = 1 + tcp_io_threads + 1; // main + TCP IO + tcp flush
+    unsigned int available_threads = std::max(5u, hardware_threads - reserved_threads);
+
+    unsigned int shading_threads = std::max(1u, available_threads / 3);
+    unsigned int object_intersection_threads = std::max(1u, available_threads / 3);
+    unsigned int direct_lighting_intersection_threads = std::max(1u, available_threads / 3);
+    unsigned int object_intersection_result_threads = 1;
+    unsigned int direct_lighting_intersection_result_threads = 1;
 
     std::vector<std::thread> threads;
 
@@ -73,29 +94,24 @@ void worker::run()
     for (int i = 0; i < shading_threads; i++)
         threads.push_back(std::thread(&worker::process_shading, this));
 
-    threads.push_back(std::thread([&]() {
-        while (!m_should_terminate)
-        {
-            spdlog::info("Queue sizes: INTERSECT={}, INTERSECT_RESULT={}, DIRECT={}, "
-                         "DIRECT_RESULT={}, INDIRECT={},",
-                         m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
-                         m_direct_lighting_intersection_queue.size_approx(),
-                         m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-    }));
+    spdlog::info("Hardware Threads {} Total Threads {}", hardware_threads, threads.size());
 
-    models::SQSOptions sqs_options;
-    sqs_options.queueUrl = m_worker_info.sqs_queue_url;
+    while (!m_should_terminate)
+    {
+        spdlog::info("Queues: ISECT={}, ISECT_RES={}, DIRECT={}, DIRECT_RES={}, SHADE={}",
+                     m_object_intersection_queue.size_approx(), m_object_intersection_result_queue.size_approx(),
+                     m_direct_lighting_intersection_queue.size_approx(),
+                     m_direct_lighting_intersection_result_queue.size_approx(), m_shading_queue.size_approx());
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+    }
 
-    threads.push_back(std::thread([&]() {
-        cloud::sqs_poll(sqs_options, m_should_terminate, [&](models::cloud_ray &ray) { process_ray_from_queue(ray); });
-    }));
-
-    spdlog::info("Hardware Threads {} Total Threads {},", hardware_threads, threads.size());
+    spdlog::info("Termination signal received, stopping worker...");
+    m_tcp_peer->stop();
 
     for (auto &thread : threads)
         thread.join();
+
+    spdlog::info("All worker threads joined, exiting.");
 }
 
 void worker::download_gltf_file()
@@ -108,6 +124,10 @@ void worker::download_gltf_file()
 void worker::generate_rays()
 {
     using namespace math;
+
+    // Use full image resolution for correct NDC calculation
+    fvec2 full_resolution(m_worker_info.image_width, m_worker_info.image_height);
+    float ratio = static_cast<float>(full_resolution.x) / full_resolution.y;
 
     for (uint32_t x = m_worker_info.min_x; x <= m_worker_info.max_x; x++)
     {
@@ -129,9 +149,8 @@ void worker::generate_rays()
                     aa_offset = fvec2(core::rand(), core::rand());
                 }
 
-                fvec2 ndc = ((fvec2(pixel) + aa_offset) / resolution) * 2 - fvec2::one;
+                fvec2 ndc = ((fvec2(pixel) + aa_offset) / full_resolution) * 2 - fvec2::one;
                 ndc.y = -ndc.y;
-                float ratio = static_cast<float>(resolution.x) / resolution.y;
 
                 geometry::ray ray = m_scene.m_camera->get_component<scene::camera>()->get_ray(ndc, ratio);
 
@@ -165,6 +184,9 @@ void worker::map_ray_stage_to_queue(const models::cloud_ray &ray)
     case models::ray_stage::SHADING:
         m_shading_queue.enqueue(ray);
         break;
+    case models::ray_stage::ACCUMULATE:
+        m_tcp_peer->enqueue_ray(ray, models::MASTER_ID);
+        break;
     default:
         break;
     }
@@ -185,25 +207,20 @@ void worker::process_ray_from_queue(models::cloud_ray &ray)
     }
     else if (ray.type == models::ray_type::CALCULATE)
     {
-        if (ray.worker_id == m_worker_info.worker_id)
-        {
-            return;
-        }
+        const auto orig_worker = ray.worker_id;
 
         if (ray.stage == models::ray_stage::INTERSECT)
         {
             calculate_object_intersection(ray);
+            ray.worker_id = m_worker_info.worker_id;
         }
         else if (ray.stage == models::ray_stage::DIRECT_LIGHTING)
         {
             calculate_direct_lighting_intersection(ray);
         }
 
-        const auto orig_worker = ray.worker_id;
-        ray.worker_id = m_worker_info.worker_id;
-
         ray.type = models::ray_type::RESOLVE;
-        cloud::sns_send(m_worker_info.sns_topic_arn, orig_worker, ray);
+        m_tcp_peer->enqueue_ray(ray, orig_worker);
     }
     else if (ray.type == models::ray_type::OWN)
     {

@@ -22,7 +22,8 @@
         "llvm-vs-code-extensions.vscode-clangd",
         "ms-python.python",
         "amazonwebservices.aws-toolkit-vscode",
-        "eamodio.gitlens"
+        "eamodio.gitlens",
+        "golang.go"
       ]
     }
   },

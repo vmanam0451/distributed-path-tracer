@@ -1,20 +1,78 @@
 #include "master.hpp"
-#include "cloud/messaging.hpp"
 #include "cloud/s3.hpp"
+#include "cloud/sqs.hpp"
+#include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
-#include "models/messaging.hpp"
 #include "path_tracer/core/utils.hpp"
 #include "path_tracer/image/image.hpp"
+#include "path_tracer/math/math.hpp"
+#include <chrono>
+#include <csignal>
 
 namespace processors
 {
+
+// Static member definitions
+std::atomic<bool> master::s_signal_received{false};
+master *master::s_instance = nullptr;
+
+void master::signal_handler(int signum)
+{
+    spdlog::warn("Received signal {} ({}), initiating graceful shutdown...", signum,
+                 signum == SIGTERM  ? "SIGTERM"
+                 : signum == SIGINT ? "SIGINT"
+                                    : "OTHER");
+    s_signal_received = true;
+    if (s_instance)
+    {
+        s_instance->m_should_terminate = true;
+    }
+}
+
+void master::setup_signal_handlers()
+{
+    s_instance = this;
+    std::signal(SIGTERM, signal_handler);
+    std::signal(SIGINT, signal_handler);
+    spdlog::info("Signal handlers installed for SIGTERM and SIGINT");
+}
+
+void master::handle_termination_signal()
+{
+    spdlog::info("Handling termination signal - generating and uploading partial image...");
+
+    uint32_t total_rays = resolution.x * resolution.y * sample_count;
+    float progress = 100.0f * m_completed_rays.load() / total_rays;
+    spdlog::info("Progress at termination: {:.1f}% ({}/{} rays)", progress, m_completed_rays.load(), total_rays);
+
+    // Signal termination to all workers via TCP
+    if (m_tcp_peer)
+    {
+        m_tcp_peer->send_terminate_all();
+    }
+
+    spdlog::info("Generating partial image...");
+    auto png_data = generate_final_image();
+
+    std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
+    spdlog::info("Uploading partial image...");
+    cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "partial_render.png", input);
+    spdlog::info("Partial image uploaded successfully");
+}
+
 master::master(const models::worker_info &worker_info)
 {
     this->m_worker_info = worker_info;
+
+    m_tcp_peer = std::make_shared<cloud::tcp_peer>(worker_info.worker_id, cloud::DEFAULT_TCP_PORT);
 }
 
 master::~master()
 {
+    if (m_tcp_peer)
+    {
+        m_tcp_peer->stop();
+    }
 }
 
 void master::run()
@@ -24,45 +82,77 @@ void master::run()
     this->sample_count = m_worker_info.samples;
     this->m_should_terminate = false;
     this->m_completed_rays = 0;
+    s_signal_received = false;
+
+    setup_signal_handlers();
 
     pixels.resize(resolution.x);
     for (auto &column : pixels)
         column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
+
+    int expected_peers = m_worker_info.num_workers;
+    spdlog::info("Starting TCP peer for master (expecting {} worker peers)", expected_peers);
+    m_tcp_peer->set_ray_callback([this](models::cloud_ray &ray) { process_ray_from_queue(ray); });
+    m_tcp_peer->set_terminate_callback([this]() { m_should_terminate = true; });
+    m_tcp_peer->start(m_worker_info.cloud_map_namespace, m_worker_info.cloud_map_service,
+                      m_worker_info.cloud_map_service_id, expected_peers, m_worker_info.aws_region);
+
+    if (!m_tcp_peer->wait_for_peers(120))
+    {
+        spdlog::error("Failed to connect to all workers, aborting");
+        return;
+    }
 
     std::vector<std::thread> threads;
     threads.push_back(std::thread(&master::process_accumulation, this));
 
     threads.push_back(std::thread(([&]() {
         uint32_t total_rays = resolution.x * resolution.y * sample_count;
-        while (m_completed_rays < total_rays)
+        while (!s_signal_received)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            float progress = 100.0f * m_completed_rays.load() / total_rays;
+            spdlog::info("Progress: {:.1f}% ({}/{} rays)", progress, m_completed_rays.load(), total_rays);
+
+            if ((progress + 5) >= 100.0f)
+                break;
+
+            std::this_thread::sleep_for(std::chrono::seconds(5));
         }
 
         m_should_terminate = true;
+        cloud::sqs_send_message(m_worker_info.results_queue_url, "", true);
+        m_tcp_peer->send_terminate_all();
 
-        cloud::sns_signal_termination(m_worker_info.sns_topic_arn, models::WORKERS_ID);
-
-        spdlog::info("All rays processed, signaling termination");
+        if (s_signal_received)
+        {
+            spdlog::info("Termination signal received, stopping processing");
+        }
+        else
+        {
+            spdlog::info("All rays processed, signaling termination");
+        }
     })));
-
-    models::SQSOptions sqs_options;
-    sqs_options.queueUrl = m_worker_info.sqs_queue_url;
-
-    threads.push_back(std::thread([&]() {
-        cloud::sqs_poll(sqs_options, m_should_terminate, [&](models::cloud_ray &ray) { process_ray_from_queue(ray); });
-    }));
 
     for (auto &thread : threads)
         thread.join();
 
     spdlog::info("All threads have completed execution.");
-    spdlog::info("Generating Image...");
 
-    auto png_data = generate_final_image();
-    std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
-    spdlog::info("Uploading image...");
-    cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
+    if (s_signal_received)
+    {
+        handle_termination_signal();
+    }
+    else
+    {
+        spdlog::info("Generating final image...");
+        auto png_data = generate_final_image();
+        std::variant<std::filesystem::path, std::vector<uint8_t>> input{png_data};
+        spdlog::info("Uploading image...");
+        cloud::s3_upload_object(m_worker_info.scene_bucket, m_worker_info.scene_root + "test.png", input);
+    }
+
+    // Clear static instance pointer
+    s_instance = nullptr;
 }
 
 std::vector<uint8_t> master::generate_final_image()

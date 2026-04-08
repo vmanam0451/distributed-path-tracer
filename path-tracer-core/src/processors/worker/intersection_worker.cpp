@@ -1,11 +1,10 @@
 #include <cmath>
+#include <mutex>
 #include <path_tracer/core/utils.hpp>
 #include <thread>
 
-#include "cloud/messaging.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/intersect_result.hpp"
-#include "models/messaging.hpp"
 #include "path_tracer/util/rand_cone_vec.hpp"
 #include "worker.hpp"
 
@@ -65,17 +64,10 @@ void worker::process_object_intersections()
         }
 
         calculate_object_intersection(ray);
-
-        // Add entry to ray in intersection map here. SQS, on rare occassions,
-        // messages are delivered "at least once". Have to create an idempotent
-        // system. By adding to the map here, can remove the check in the results
-        // method. If results worker gets an id not in map, just drop it.
-
         m_object_intersection_result_queue.enqueue(ray);
-        m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
 
         ray.type = models::ray_type::CALCULATE;
-        cloud::sns_send(m_worker_info.sns_topic_arn, models::WORKERS_ID, ray);
+        m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
     }
 }
 
@@ -93,10 +85,9 @@ void worker::process_direct_lighting_intersections()
 
         calculate_direct_lighting_intersection(ray);
         m_direct_lighting_intersection_result_queue.enqueue(ray);
-        m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
 
         ray.type = models::ray_type::CALCULATE;
-        cloud::sns_send(m_worker_info.sns_topic_arn, models::WORKERS_ID, ray);
+        m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
     }
 }
 
@@ -114,7 +105,7 @@ void worker::process_object_intersection_results()
 
         if (m_object_intersection_results.find(ray.uuid) == m_object_intersection_results.end())
         {
-            continue;
+            m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }
 
         auto results = m_object_intersection_results[ray.uuid];
@@ -135,8 +126,6 @@ void worker::process_object_intersection_results()
         results = m_object_intersection_results[ray.uuid];
         if (results.first == m_worker_info.num_workers)
         {
-            m_object_intersection_results.erase(ray.uuid);
-
             auto best_ray = results.second;
             if (best_ray.object_intersect_distance == std::numeric_limits<float>::max())
             {
@@ -160,8 +149,10 @@ void worker::process_object_intersection_results()
             else
             {
                 best_ray.type = models::ray_type::OWN;
-                cloud::sns_send(m_worker_info.sns_topic_arn, best_ray.worker_id, best_ray);
+                m_tcp_peer->enqueue_ray(best_ray, best_ray.worker_id);
             }
+
+            m_object_intersection_results.erase(ray.uuid);
         }
     }
 }
@@ -180,7 +171,7 @@ void worker::process_direct_lighting_intersection_results()
 
         if (m_direct_lighting_intersection_results.find(ray.uuid) == m_direct_lighting_intersection_results.end())
         {
-            continue;
+            m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
         }
 
         auto results = m_direct_lighting_intersection_results[ray.uuid];
@@ -202,11 +193,11 @@ void worker::process_direct_lighting_intersection_results()
         results = m_direct_lighting_intersection_results[ray.uuid];
         if (results.first == m_worker_info.num_workers)
         {
-            m_direct_lighting_intersection_results.erase(ray.uuid);
-
             auto best_ray = results.second;
             best_ray.stage = models::ray_stage::SHADING;
             map_ray_stage_to_queue(best_ray);
+
+            m_direct_lighting_intersection_results.erase(ray.uuid);
         }
     }
 }

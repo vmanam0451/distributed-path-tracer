@@ -1,11 +1,14 @@
 #pragma once
 
 #include <concurrentqueue/concurrentqueue.h>
+#include <mutex>
 #include <sys/types.h>
 
 #include <cstdint>
+#include <memory>
 
 #include "cloud/s3.hpp"
+#include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/work_info.hpp"
 #include "pch.hpp"
@@ -48,7 +51,6 @@ class worker : public application
     void process_ray_from_queue(models::cloud_ray &ray);
 
     std::vector<uint8_t> render() const;
-    math::fvec4 trace_iter(uint8_t initial_bounce, const geometry::ray &initial_ray) const;
 
     // TODO:
     /*
@@ -70,6 +72,9 @@ class worker : public application
     cloud::distributed_scene m_scene;
 
     std::atomic<bool> m_should_terminate;
+
+    // TCP peer for direct worker-to-worker communication
+    std::shared_ptr<cloud::tcp_peer> m_tcp_peer;
 
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_queue;
     moodycamel::ConcurrentQueue<models::cloud_ray> m_object_intersection_result_queue;
