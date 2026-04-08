@@ -37,5 +37,5 @@ jobs:
       - name: Deploy CDK stack
         run: |
           cd cdk/
-          cdk deploy --require-approval=never
+          pipenv cdk deploy --require-approval=never
           
