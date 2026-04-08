@@ -6,6 +6,16 @@ on:
   push:
     branches: 
       - main
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        default: "deploy"
+        type: choice
+        options:
+          - deploy
+          - destroy
   
 jobs:
   deploy:
@@ -35,7 +45,11 @@ jobs:
           cd cdk/
           pipenv install -r requirements.txt
       - name: Deploy CDK stack
+        working-directory: cdk/
         run: |
-          cd cdk/
-          pipenv cdk deploy --require-approval=never
+          if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
+            pipenv run cdk destroy --force
+          else
+            pipenv run cdk deploy --require-approval=never
+          fi
           
