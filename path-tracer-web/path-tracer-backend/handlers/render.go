@@ -144,8 +144,11 @@ func Render(c *gin.Context) {
 
 	// 5. Poll for render results
 	sendStatus("Rendering...")
-	err = services.PollSQSQueue(c.Request.Context(), queueURL, awsConfig, func(message string) {
-		c.SSEvent("renderUpdate", gin.H{"message": message})
+	err = services.PollSQSQueue(setupCtx, queueURL, awsConfig, func(messages []string) {
+		// Each SQS message body is already a JSON array of pixels: "[{p1},{p2},...]"
+		for _, msg := range messages {
+			c.SSEvent("renderUpdate", gin.H{"message": msg})
+		}
 		c.Writer.Flush()
 	}, func() {
 		c.SSEvent("keepalive", "")

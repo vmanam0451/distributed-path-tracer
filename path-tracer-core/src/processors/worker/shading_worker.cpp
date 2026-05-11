@@ -20,7 +20,6 @@ void worker::process_shading()
         if (!m_shading_queue.try_dequeue(ray))
         {
             std::this_thread::yield();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 

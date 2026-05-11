@@ -53,7 +53,7 @@ type sqsResult struct {
 	err      error
 }
 
-func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessage func(message string), onKeepalive func()) error {
+func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessages func(messages []string), onKeepalive func()) error {
 	log.Printf("Polling SQS queue: %s", queueURL)
 
 	client := sqs.NewFromConfig(cfg)
@@ -89,15 +89,22 @@ func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessag
 					log.Printf("Failed to receive messages from SQS queue: %v", result.err)
 					return result.err
 				}
+				var batch []string
 				for _, message := range result.messages {
-					log.Printf("Received message from SQS queue: %s", *message.Body)
 					if _, ok := message.MessageAttributes["Terminate"]; ok {
 						log.Printf("Termination message received, stopping SQS polling")
 						deleteSQSMessage(context.Background(), message, client, queueURL)
+						// Send any remaining batch before returning
+						if len(batch) > 0 {
+							onMessages(batch)
+						}
 						return nil
 					}
-					onMessage(*message.Body)
+					batch = append(batch, *message.Body)
 					deleteSQSMessage(context.Background(), message, client, queueURL)
+				}
+				if len(batch) > 0 {
+					onMessages(batch)
 				}
 				break waitLoop
 			case <-keepaliveTicker.C:
@@ -110,7 +117,6 @@ func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessag
 }
 
 func deleteSQSMessage(ctx context.Context, msg types.Message, sqsClient *sqs.Client, queueURL string) {
-	log.Printf("Deleting message from SQS queue: %s", *msg.MessageId)
 	_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 		QueueUrl:      aws.String(queueURL),
 		ReceiptHandle: msg.ReceiptHandle,

@@ -5,6 +5,7 @@
 #include <aws/servicediscovery/model/DiscoverInstancesRequest.h>
 #include <aws/servicediscovery/model/ListInstancesRequest.h>
 #include <aws/servicediscovery/model/RegisterInstanceRequest.h>
+#include <cstring>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
@@ -938,21 +939,161 @@ void tcp_peer::deregister_instance()
     }
 }
 
-// JSON serialization - uses the to_json/from_json defined in cloud_ray.hpp
+// ── Binary serialization helpers ──────────────────────────────────────────────
+
+static void write_float(std::vector<uint8_t> &buf, float v)
+{
+    const auto *p = reinterpret_cast<const uint8_t *>(&v);
+    buf.insert(buf.end(), p, p + 4);
+}
+
+static void write_u64(std::vector<uint8_t> &buf, uint64_t v)
+{
+    const auto *p = reinterpret_cast<const uint8_t *>(&v);
+    buf.insert(buf.end(), p, p + 8);
+}
+
+static void write_vec3(std::vector<uint8_t> &buf, const math::fvec3 &v)
+{
+    write_float(buf, v.x);
+    write_float(buf, v.y);
+    write_float(buf, v.z);
+}
+
+static void write_ray(std::vector<uint8_t> &buf, const geometry::ray &r)
+{
+    write_vec3(buf, r.origin);
+    write_vec3(buf, r.get_dir());
+}
+
+static void write_string(std::vector<uint8_t> &buf, const std::string &s)
+{
+    uint16_t len = static_cast<uint16_t>(s.size());
+    buf.push_back(len & 0xFF);
+    buf.push_back((len >> 8) & 0xFF);
+    buf.insert(buf.end(), s.begin(), s.end());
+}
+
+static float read_float(const uint8_t *&p)
+{
+    float v;
+    std::memcpy(&v, p, 4);
+    p += 4;
+    return v;
+}
+
+static uint64_t read_u64(const uint8_t *&p)
+{
+    uint64_t v;
+    std::memcpy(&v, p, 8);
+    p += 8;
+    return v;
+}
+
+static math::fvec3 read_vec3(const uint8_t *&p)
+{
+    float x = read_float(p);
+    float y = read_float(p);
+    float z = read_float(p);
+    return math::fvec3(x, y, z);
+}
+
+static geometry::ray read_ray(const uint8_t *&p)
+{
+    math::fvec3 origin = read_vec3(p);
+    math::fvec3 dir = read_vec3(p);
+    return geometry::ray(origin, dir);
+}
+
+static std::string read_string(const uint8_t *&p)
+{
+    uint16_t len = p[0] | (p[1] << 8);
+    p += 2;
+    std::string s(reinterpret_cast<const char *>(p), len);
+    p += len;
+    return s;
+}
 
 std::vector<uint8_t> tcp_peer::serialize_rays_binary(const std::vector<models::cloud_ray> &rays)
 {
-    json j;
-    j["rays"] = rays;
-    std::string str = j.dump();
-    return std::vector<uint8_t>(str.begin(), str.end());
+    // Pre-allocate: ~120 bytes per ray is a reasonable estimate
+    std::vector<uint8_t> buf;
+    buf.reserve(rays.size() * 120);
+
+    // Ray count (4 bytes)
+    uint32_t count = static_cast<uint32_t>(rays.size());
+    buf.push_back(count & 0xFF);
+    buf.push_back((count >> 8) & 0xFF);
+    buf.push_back((count >> 16) & 0xFF);
+    buf.push_back((count >> 24) & 0xFF);
+
+    for (const auto &r : rays)
+    {
+        write_string(buf, r.worker_id);
+        write_u64(buf, r.uuid);
+        write_ray(buf, r.ray);
+
+        // Optional direct_light_ray
+        uint8_t has_dlr = r.direct_light_ray.has_value() ? 1 : 0;
+        buf.push_back(has_dlr);
+        if (has_dlr)
+        {
+            write_ray(buf, r.direct_light_ray.value());
+        }
+
+        write_float(buf, r.object_intersect_distance);
+        buf.push_back(r.direct_light_intersect_result ? 1 : 0);
+        write_vec3(buf, r.color);
+        write_float(buf, r.alpha);
+        write_vec3(buf, r.scale);
+        buf.push_back(r.bounce);
+        buf.push_back(static_cast<uint8_t>(r.stage));
+        buf.push_back(static_cast<uint8_t>(r.type));
+    }
+
+    return buf;
 }
 
 std::vector<models::cloud_ray> tcp_peer::deserialize_rays_binary(const std::vector<uint8_t> &data)
 {
-    std::string str(data.begin(), data.end());
-    auto j = json::parse(str);
-    return j["rays"].get<std::vector<models::cloud_ray>>();
+    const uint8_t *p = data.data();
+
+    uint32_t count = p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
+    p += 4;
+
+    std::vector<models::cloud_ray> rays;
+    rays.reserve(count);
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        models::cloud_ray r;
+        r.worker_id = read_string(p);
+        r.uuid = read_u64(p);
+        r.ray = read_ray(p);
+
+        uint8_t has_dlr = *p++;
+        if (has_dlr)
+        {
+            r.direct_light_ray = read_ray(p);
+        }
+        else
+        {
+            r.direct_light_ray = std::nullopt;
+        }
+
+        r.object_intersect_distance = read_float(p);
+        r.direct_light_intersect_result = (*p++ != 0);
+        r.color = read_vec3(p);
+        r.alpha = read_float(p);
+        r.scale = read_vec3(p);
+        r.bounce = *p++;
+        r.stage = static_cast<models::ray_stage>(*p++);
+        r.type = static_cast<models::ray_type>(*p++);
+
+        rays.push_back(std::move(r));
+    }
+
+    return rays;
 }
 
 } // namespace cloud

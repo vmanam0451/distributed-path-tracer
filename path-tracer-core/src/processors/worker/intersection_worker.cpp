@@ -53,151 +53,172 @@ void worker::calculate_direct_lighting_intersection(models::cloud_ray &ray)
 
 void worker::process_object_intersections()
 {
+    constexpr size_t BULK_SIZE = 64;
+    models::cloud_ray rays[BULK_SIZE];
+
     while (!m_should_terminate)
     {
-        models::cloud_ray ray{};
-        if (!m_object_intersection_queue.try_dequeue(ray))
+        size_t count = m_object_intersection_queue.try_dequeue_bulk(rays, BULK_SIZE);
+        if (count == 0)
         {
             std::this_thread::yield();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 
-        calculate_object_intersection(ray);
-        m_object_intersection_result_queue.enqueue(ray);
+        for (size_t i = 0; i < count; ++i)
+        {
+            auto &ray = rays[i];
+            calculate_object_intersection(ray);
+            m_object_intersection_result_queue.enqueue(ray);
 
-        ray.type = models::ray_type::CALCULATE;
-        m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
+            ray.type = models::ray_type::CALCULATE;
+            m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
+        }
     }
 }
 
 void worker::process_direct_lighting_intersections()
 {
+    constexpr size_t BULK_SIZE = 64;
+    models::cloud_ray rays[BULK_SIZE];
+
     while (!m_should_terminate)
     {
-        models::cloud_ray ray{};
-        if (!m_direct_lighting_intersection_queue.try_dequeue(ray))
+        size_t count = m_direct_lighting_intersection_queue.try_dequeue_bulk(rays, BULK_SIZE);
+        if (count == 0)
         {
             std::this_thread::yield();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 
-        calculate_direct_lighting_intersection(ray);
-        m_direct_lighting_intersection_result_queue.enqueue(ray);
+        for (size_t i = 0; i < count; ++i)
+        {
+            auto &ray = rays[i];
+            calculate_direct_lighting_intersection(ray);
+            m_direct_lighting_intersection_result_queue.enqueue(ray);
 
-        ray.type = models::ray_type::CALCULATE;
-        m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
+            ray.type = models::ray_type::CALCULATE;
+            m_tcp_peer->enqueue_ray(ray, models::WORKERS_ID);
+        }
     }
 }
 
 void worker::process_object_intersection_results()
 {
+    constexpr size_t BULK_SIZE = 128;
+    models::cloud_ray rays[BULK_SIZE];
+
     while (!m_should_terminate)
     {
-        models::cloud_ray ray{};
-        if (!m_object_intersection_result_queue.try_dequeue(ray))
+        size_t count = m_object_intersection_result_queue.try_dequeue_bulk(rays, BULK_SIZE);
+        if (count == 0)
         {
             std::this_thread::yield();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 
-        if (m_object_intersection_results.find(ray.uuid) == m_object_intersection_results.end())
+        for (size_t i = 0; i < count; ++i)
         {
-            m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
-        }
+            auto &ray = rays[i];
 
-        auto results = m_object_intersection_results[ray.uuid];
-        if (results.first < m_worker_info.num_workers)
-        {
-            auto previous_best = results.second;
-            if (ray.object_intersect_distance < previous_best.object_intersect_distance)
+            auto it = m_object_intersection_results.find(ray.uuid);
+            if (it == m_object_intersection_results.end())
             {
-                m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{results.first + 1, ray};
+                m_object_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
             }
             else
             {
-                m_object_intersection_results[ray.uuid] =
-                    std::pair<int, models::cloud_ray>{results.first + 1, previous_best};
-            }
-        }
-
-        results = m_object_intersection_results[ray.uuid];
-        if (results.first == m_worker_info.num_workers)
-        {
-            auto best_ray = results.second;
-            if (best_ray.object_intersect_distance == std::numeric_limits<float>::max())
-            {
-                best_ray.stage = models::ray_stage::SHADING;
-            }
-            else
-            {
-                if (best_ray.direct_light_ray.has_value())
+                auto &results = it->second;
+                if (ray.object_intersect_distance < results.second.object_intersect_distance)
                 {
-                    best_ray.stage = models::ray_stage::DIRECT_LIGHTING;
+                    results = std::pair<int, models::cloud_ray>{results.first + 1, ray};
                 }
                 else
                 {
-                    best_ray.stage = models::ray_stage::SHADING;
+                    results.first++;
                 }
             }
-            if (best_ray.worker_id == m_worker_info.worker_id)
-            {
-                map_ray_stage_to_queue(best_ray);
-            }
-            else
-            {
-                best_ray.type = models::ray_type::OWN;
-                m_tcp_peer->enqueue_ray(best_ray, best_ray.worker_id);
-            }
 
-            m_object_intersection_results.erase(ray.uuid);
+            auto &results = m_object_intersection_results[ray.uuid];
+            if (results.first == m_worker_info.num_workers)
+            {
+                auto best_ray = std::move(results.second);
+                if (best_ray.object_intersect_distance == std::numeric_limits<float>::max())
+                {
+                    best_ray.stage = models::ray_stage::SHADING;
+                }
+                else
+                {
+                    if (best_ray.direct_light_ray.has_value())
+                    {
+                        best_ray.stage = models::ray_stage::DIRECT_LIGHTING;
+                    }
+                    else
+                    {
+                        best_ray.stage = models::ray_stage::SHADING;
+                    }
+                }
+                if (best_ray.worker_id == m_worker_info.worker_id)
+                {
+                    map_ray_stage_to_queue(best_ray);
+                }
+                else
+                {
+                    best_ray.type = models::ray_type::OWN;
+                    m_tcp_peer->enqueue_ray(best_ray, best_ray.worker_id);
+                }
+
+                m_object_intersection_results.erase(ray.uuid);
+            }
         }
     }
 }
 
 void worker::process_direct_lighting_intersection_results()
 {
+    constexpr size_t BULK_SIZE = 128;
+    models::cloud_ray rays[BULK_SIZE];
+
     while (!m_should_terminate)
     {
-        models::cloud_ray ray{};
-        if (!m_direct_lighting_intersection_result_queue.try_dequeue(ray))
+        size_t count = m_direct_lighting_intersection_result_queue.try_dequeue_bulk(rays, BULK_SIZE);
+        if (count == 0)
         {
             std::this_thread::yield();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 
-        if (m_direct_lighting_intersection_results.find(ray.uuid) == m_direct_lighting_intersection_results.end())
+        for (size_t i = 0; i < count; ++i)
         {
-            m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
-        }
+            auto &ray = rays[i];
 
-        auto results = m_direct_lighting_intersection_results[ray.uuid];
-        if (results.first < m_worker_info.num_workers)
-        {
-            auto previous = results.second;
-            if (ray.direct_light_intersect_result)
+            auto it = m_direct_lighting_intersection_results.find(ray.uuid);
+            if (it == m_direct_lighting_intersection_results.end())
             {
-                m_direct_lighting_intersection_results[ray.uuid] =
-                    std::pair<int, models::cloud_ray>{results.first + 1, ray};
+                m_direct_lighting_intersection_results[ray.uuid] = std::pair<int, models::cloud_ray>{1, ray};
             }
             else
             {
-                m_direct_lighting_intersection_results[ray.uuid] =
-                    std::pair<int, models::cloud_ray>{results.first + 1, previous};
+                auto &results = it->second;
+                if (ray.direct_light_intersect_result)
+                {
+                    results = std::pair<int, models::cloud_ray>{results.first + 1, ray};
+                }
+                else
+                {
+                    results.first++;
+                }
             }
-        }
 
-        results = m_direct_lighting_intersection_results[ray.uuid];
-        if (results.first == m_worker_info.num_workers)
-        {
-            auto best_ray = results.second;
-            best_ray.stage = models::ray_stage::SHADING;
-            map_ray_stage_to_queue(best_ray);
+            auto &results = m_direct_lighting_intersection_results[ray.uuid];
+            if (results.first == m_worker_info.num_workers)
+            {
+                auto best_ray = std::move(results.second);
+                best_ray.stage = models::ray_stage::SHADING;
+                map_ray_stage_to_queue(best_ray);
 
-            m_direct_lighting_intersection_results.erase(ray.uuid);
+                m_direct_lighting_intersection_results.erase(ray.uuid);
+            }
         }
     }
 }

@@ -3,6 +3,7 @@
 #include <concurrentqueue/concurrentqueue.h>
 #include <mutex>
 #include <sys/types.h>
+#include <unordered_map>
 
 #include <cstdint>
 #include <memory>
@@ -84,7 +85,7 @@ class worker : public application
 
     moodycamel::ConcurrentQueue<models::cloud_ray> m_shading_queue;
 
-    std::map<uint64_t, std::pair<int, models::cloud_ray>> m_object_intersection_results;
-    std::map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
+    std::unordered_map<uint64_t, std::pair<int, models::cloud_ray>> m_object_intersection_results;
+    std::unordered_map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
 };
 } // namespace processors

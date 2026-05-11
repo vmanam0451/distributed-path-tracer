@@ -26,6 +26,8 @@ export default function RenderPage({ renderRequest }: { renderRequest: RenderReq
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
+        const imageData = ctx.createImageData(canvas.width, canvas.height);
+
         const controller = new AbortController();
 
         fetchEventSource("/api/render", {
@@ -55,13 +57,22 @@ export default function RenderPage({ renderRequest }: { renderRequest: RenderReq
                 // renderUpdate events
                 if (statusRef.current) statusRef.current.textContent = "";
                 const wrapper = JSON.parse(event.data) as { message: string };
-                const pixel: Pixel = JSON.parse(wrapper.message);
-                const { x: r, y: g, z: b } = pixel.color;
-                const R = Math.round(r * 255);
-                const G = Math.round(g * 255);
-                const B = Math.round(b * 255);
-                ctx.fillStyle = `rgba(${R}, ${G}, ${B}, ${pixel.alpha})`;
-                ctx.fillRect(pixel.X, pixel.Y, 1, 1);
+                const pixels: Pixel[] = JSON.parse(wrapper.message);
+                for (const pixel of pixels) {
+                    const { x: r, y: g, z: b } = pixel.color;
+                    console.log(`Received pixel update: (${pixel.X}, ${pixel.Y}) = (${r}, ${g}, ${b}, ${pixel.alpha})`);
+                    
+                    const R = Math.min(255, Math.round(Math.pow(Math.max(0, r), 1 / 2.2) * 255));
+                    const G = Math.min(255, Math.round(Math.pow(Math.max(0, g), 1 / 2.2) * 255));
+                    const B = Math.min(255, Math.round(Math.pow(Math.max(0, b), 1 / 2.2) * 255));
+                    const A = Math.min(255, Math.round(pixel.alpha * 255));
+                    const idx = (pixel.Y * canvas.width + pixel.X) * 4;
+                    imageData.data[idx] = R;
+                    imageData.data[idx + 1] = G;
+                    imageData.data[idx + 2] = B;
+                    imageData.data[idx + 3] = A;
+                }
+                ctx.putImageData(imageData, 0, 0);
             },
             onerror(err: Error) {
                 console.error("SSE error:", err);
