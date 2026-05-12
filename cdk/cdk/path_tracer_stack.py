@@ -4,7 +4,6 @@ from aws_cdk import Stack
 from constructs import Construct
 
 from cdk.path_tracer_worker_construct import PathTracerWorkerConstruct
-from cdk.preprocessor_construct import PreprocessorConstruct
 from cdk.web_app_construct import WebAppConstruct
 
 
