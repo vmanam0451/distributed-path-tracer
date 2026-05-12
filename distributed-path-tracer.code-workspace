@@ -7,9 +7,6 @@
             "path": "cdk"
         },
         {
-            "path": "path-tracer-preprocessor"
-        },
-        {
             "path": "path-tracer-core"
         },
         {

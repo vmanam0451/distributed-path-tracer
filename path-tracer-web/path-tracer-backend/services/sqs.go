@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -33,7 +34,7 @@ func CreateSQSQueue(ctx context.Context, queueName string, cfg aws.Config) (stri
 
 func DeleteSQSQueue(ctx context.Context, queueURL string, cfg aws.Config) error {
 	log.Printf("Deleting SQS queue: %s", queueURL)
-	
+
 	client := sqs.NewFromConfig(cfg)
 	_, err := client.DeleteQueue(ctx, &sqs.DeleteQueueInput{
 		QueueUrl: aws.String(queueURL),
@@ -47,38 +48,74 @@ func DeleteSQSQueue(ctx context.Context, queueURL string, cfg aws.Config) error 
 	return nil
 }
 
-func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessage func(message string)) error {
+type sqsResult struct {
+	messages []types.Message
+	err      error
+}
+
+func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessages func(messages []string), onKeepalive func()) error {
 	log.Printf("Polling SQS queue: %s", queueURL)
 
 	client := sqs.NewFromConfig(cfg)
+	keepaliveTicker := time.NewTicker(1 * time.Second)
+	defer keepaliveTicker.Stop()
+
 	for {
-		output, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
-			QueueUrl:              aws.String(queueURL),
-			MaxNumberOfMessages:   10,
-			WaitTimeSeconds:       20, // Enable long polling
-			MessageAttributeNames: []string{"ALL"},
-		})
-		if err != nil {
-			log.Printf("Failed to receive messages from SQS queue: %v", err)
-			return err
-		}
-
-		for _, message := range output.Messages {
-			log.Printf("Received message from SQS queue: %s", *message.Body)
-			if _, ok := message.MessageAttributes["Terminate"]; ok {
-				log.Printf("Termination message received, stopping SQS polling")
-				deleteSQSMessage(ctx, message, client, queueURL)
-				return nil
+		// Poll SQS in a goroutine so we can send keepalives concurrently
+		resultCh := make(chan sqsResult, 1)
+		go func() {
+			output, err := client.ReceiveMessage(context.Background(), &sqs.ReceiveMessageInput{
+				QueueUrl:              aws.String(queueURL),
+				MaxNumberOfMessages:   10,
+				WaitTimeSeconds:       20,
+				MessageAttributeNames: []string{"ALL"},
+			})
+			if err != nil {
+				resultCh <- sqsResult{err: err}
+				return
 			}
+			resultCh <- sqsResult{messages: output.Messages}
+		}()
 
-			onMessage(*message.Body)
-			deleteSQSMessage(ctx, message, client, queueURL)
+	waitLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("Context canceled during SQS poll")
+				return ctx.Err()
+			case result := <-resultCh:
+				if result.err != nil {
+					log.Printf("Failed to receive messages from SQS queue: %v", result.err)
+					return result.err
+				}
+				var batch []string
+				for _, message := range result.messages {
+					if _, ok := message.MessageAttributes["Terminate"]; ok {
+						log.Printf("Termination message received, stopping SQS polling")
+						deleteSQSMessage(context.Background(), message, client, queueURL)
+					
+						if len(batch) > 0 {
+							onMessages(batch)
+						}
+						return nil
+					}
+					batch = append(batch, *message.Body)
+					deleteSQSMessage(context.Background(), message, client, queueURL)
+				}
+				if len(batch) > 0 {
+					onMessages(batch)
+				}
+				break waitLoop
+			case <-keepaliveTicker.C:
+				if onKeepalive != nil {
+					onKeepalive()
+				}
+			}
 		}
 	}
 }
 
 func deleteSQSMessage(ctx context.Context, msg types.Message, sqsClient *sqs.Client, queueURL string) {
-	log.Printf("Deleting message from SQS queue: %s", *msg.MessageId)
 	_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 		QueueUrl:      aws.String(queueURL),
 		ReceiptHandle: msg.ReceiptHandle,

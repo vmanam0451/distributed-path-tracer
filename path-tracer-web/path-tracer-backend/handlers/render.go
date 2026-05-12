@@ -5,10 +5,10 @@ import (
 	"log"
 	"os"
 	"pathtracerbackend/services"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type renderRequest struct {
@@ -22,9 +22,7 @@ type renderRequest struct {
 	Y           int    `json:"Y" binding:"required"`
 }
 
-// cleanupResources tears down all AWS resources created during a render.
-// Uses context.Background() so cleanup succeeds even if the request context is cancelled.
-func cleanupResources(awsConfig aws.Config, queueURL, cloudMapServiceId, ecsClusterArn, taskDefinitionArn string) {
+func cleanupResources(awsConfig aws.Config, queueURL, cloudMapServiceId, ecsClusterArn string, taskArns []string) {
 	ctx := context.Background()
 	log.Println("Running render cleanup...")
 
@@ -34,8 +32,8 @@ func cleanupResources(awsConfig aws.Config, queueURL, cloudMapServiceId, ecsClus
 	if cloudMapServiceId != "" {
 		services.DeleteCloudMapService(ctx, cloudMapServiceId, awsConfig)
 	}
-	if ecsClusterArn != "" && taskDefinitionArn != "" {
-		services.StopAllTasks(ctx, ecsClusterArn, taskDefinitionArn, awsConfig)
+	if ecsClusterArn != "" {
+		services.StopTasks(ctx, ecsClusterArn, taskArns, awsConfig)
 	}
 
 	log.Println("Render cleanup complete")
@@ -54,70 +52,101 @@ func Render(c *gin.Context) {
 		return
 	}
 
-	lambdaArn := os.Getenv("PREPROCESSOR_LAMBDA_ARN")
 	namespaceId := os.Getenv("CLOUD_MAP_NAMESPACE_ID")
 	namespaceName := os.Getenv("CLOUD_MAP_NAMESPACE_NAME")
 	ecsClusterArn := os.Getenv("ECS_CLUSTER_ARN")
-	taskDefinitionArn := os.Getenv("TASK_DEFINITION_ARN")
-	serviceName := req.SceneName + "-workers"
+	awsRegion := os.Getenv("AWS_REGION")
+	if awsRegion == "" {
+		awsRegion = os.Getenv("AWS_DEFAULT_REGION")
+	}
 
-	// Track created resources for cleanup
+	renderID := uuid.New().String()[:8]
+	serviceName := req.SceneName + "-" + renderID
+
 	var queueURL string
 	var cloudMapServiceId string
+	var taskArns []string
 
 	defer func() {
-		cleanupResources(awsConfig, queueURL, cloudMapServiceId, ecsClusterArn, taskDefinitionArn)
+		cleanupResources(awsConfig, queueURL, cloudMapServiceId, ecsClusterArn, taskArns)
 	}()
-
-	ctx := c.Request.Context()
-
-	cloudMapServiceId, err = services.CreateCloudMapService(ctx, namespaceId, serviceName, awsConfig)
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to create Cloud Map service"})
-		return
-	}
-
-	queueName := "render-results-queue" + req.SceneName
-	queueURL, err = services.CreateSQSQueue(ctx, queueName, awsConfig)
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to create SQS queue"})
-		return
-	}
-
-	lambdaPayload := createLambdaPayload(req, namespaceName, serviceName, cloudMapServiceId, queueURL)
-	err = services.InvokePreprocessorLambda(ctx, lambdaArn, lambdaPayload, awsConfig)
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to invoke Lambda function: " + err.Error()})
-		return
-	}
 
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
-	err = services.PollSQSQueue(ctx, queueURL, awsConfig, func(message string) {
-		c.SSEvent("renderUpdate", gin.H{"message": message})
+	sendStatus := func(status string) {
+		c.SSEvent("status", gin.H{"message": status})
+		c.Writer.Flush()
+	}
+
+	sendError := func(msg string) {
+		c.SSEvent("error", gin.H{"message": msg})
+		c.Writer.Flush()
+	}
+
+	setupCtx := context.Background()
+
+	sendStatus("Creating Cloud Map service...")
+	cloudMapServiceId, err = services.CreateCloudMapService(setupCtx, namespaceId, serviceName, awsConfig)
+	if err != nil {
+		sendError("Failed to create Cloud Map service")
+		return
+	}
+
+	sendStatus("Creating SQS queue...")
+	queueName := "render-results-" + renderID
+	queueURL, err = services.CreateSQSQueue(setupCtx, queueName, awsConfig)
+	if err != nil {
+		sendError("Failed to create SQS queue")
+		return
+	}
+
+	sendStatus("Preprocessing scene...")
+	splitScene, err := services.PreprocessScene(setupCtx, awsConfig, req.SceneBucket, req.SceneKey, req.NumWorkers)
+	if err != nil {
+		sendError("Failed to preprocess scene: " + err.Error())
+		return
+	}
+
+	sendStatus("Launching worker tasks...")
+	workerInfos := services.BuildWorkerInfos(splitScene, services.WorkerInfoParams{
+		SceneBucket:       req.SceneBucket,
+		SceneKey:          req.SceneKey,
+		NumWorkers:        req.NumWorkers,
+		Samples:           req.NumSamples,
+		Bounces:           req.NumBounces,
+		ImageWidth:        req.X,
+		ImageHeight:       req.Y,
+		CloudMapNamespace: namespaceName,
+		CloudMapService:   serviceName,
+		CloudMapServiceId: cloudMapServiceId,
+		ResultsQueueURL:   queueURL,
+		AWSRegion:         awsRegion,
+	})
+
+	taskArns, err = services.LaunchWorkerTasks(setupCtx, workerInfos, awsConfig)
+	if err != nil {
+		sendError("Failed to launch worker tasks: " + err.Error())
+		return
+	}
+
+	sendStatus("Rendering...")
+	err = services.PollSQSQueue(setupCtx, queueURL, awsConfig, func(messages []string) {
+		// Each SQS message body is already a JSON array of pixels: "[{p1},{p2},...]"
+		for _, msg := range messages {
+			c.SSEvent("renderUpdate", gin.H{"message": msg})
+		}
+		c.Writer.Flush()
+	}, func() {
+		c.SSEvent("keepalive", "")
 		c.Writer.Flush()
 	})
 
-	if err != nil && ctx.Err() == nil {
-		c.JSON(500, gin.H{"error": "Failed to poll SQS queue"})
-		return
+	if err != nil {
+		log.Printf("Polling ended: %v", err)
 	}
-}
 
-func createLambdaPayload(req renderRequest, namespaceName, serviceName, serviceId, resultsQueueURL string) services.LambdaRequest {
-	return services.LambdaRequest{
-		SceneBucket: req.SceneBucket,
-		SceneKey: req.SceneKey,
-		NumWorkers: req.NumWorkers,
-		NumSamples: req.NumSamples,
-		NumBounces: req.NumBounces,
-		X: req.X,
-		Y: req.Y,
-		CloudMapNamespace: namespaceName,
-		CloudMapService: serviceName,
-		CloudMapServiceId: serviceId,
-		ResultsQueueURL: resultsQueueURL,
-	}
+	c.SSEvent("done", gin.H{"message": "Render complete"})
+	c.Writer.Flush()
 }

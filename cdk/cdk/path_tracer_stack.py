@@ -14,15 +14,11 @@ class PathTracerStack(Stack):
 
 
         worker = PathTracerWorkerConstruct(self, "PathTracerWorkerConstruct")
-        preprocessor = PreprocessorConstruct(self, "PreprocessorConstruct",
-                                            ecs_cluster=worker.cluster,
-                                            task_definition=worker.task_definition,
-                                            vpc=worker.vpc,
-                                            task_security_group=worker.task_security_group)
         
         web_app = WebAppConstruct(self, "WebAppConstruct",
-                              lambda_function=preprocessor.lambda_function,
                               namespace=worker.namespace,
                               ecs_cluster=worker.cluster,
-                              task_definition=worker.task_definition)
+                              task_definition=worker.task_definition,
+                              vpc=worker.vpc,
+                              task_security_group=worker.task_security_group)
         
