@@ -3,7 +3,6 @@ from aws_cdk import (
     aws_iam as iam,
     aws_servicediscovery as servicediscovery,
     aws_ecs_patterns as ecsPatterns,
-    aws_lambda as _lambda,
     aws_ec2 as ec2,
     Duration,
 )
@@ -51,7 +50,6 @@ class WebAppConstruct(Construct):
             unhealthy_threshold_count=3,
         )
 
-        lambda_function.grant_invoke(web_service.task_definition.task_role)
 
         web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
             actions=["sqs:CreateQueue", "sqs:DeleteQueue", "sqs:SendMessage",
