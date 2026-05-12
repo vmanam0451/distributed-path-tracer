@@ -12,7 +12,6 @@ from constructs import Construct
 class WebAppConstruct(Construct):
     
     def __init__(self, scope: Construct, id: str, 
-                 lambda_function: _lambda.IFunction,
                  namespace: servicediscovery.IHttpNamespace,
                  ecs_cluster: ecs.ICluster,
                  task_definition: ecs.TaskDefinition,
