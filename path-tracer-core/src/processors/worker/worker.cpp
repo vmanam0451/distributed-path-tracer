@@ -69,7 +69,7 @@ void worker::run()
     spdlog::info("Hardware Threads: {}", hardware_threads);
 
     // Reserve threads for: main, TCP IO (2+), tcp_peer flush
-    unsigned int tcp_io_threads = 2;
+    unsigned int tcp_io_threads = 1;
     unsigned int reserved_threads = 1 + tcp_io_threads + 1; // main + TCP IO + tcp flush
     unsigned int available_threads = std::max(5u, hardware_threads - reserved_threads);
 

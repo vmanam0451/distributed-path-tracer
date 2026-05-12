@@ -65,10 +65,15 @@ master::master(const models::worker_info &worker_info)
     this->m_worker_info = worker_info;
 
     m_tcp_peer = std::make_shared<cloud::tcp_peer>(worker_info.worker_id, cloud::DEFAULT_TCP_PORT);
+    m_sqs_sender = std::make_unique<cloud::sqs_sender>(worker_info.results_queue_url);
 }
 
 master::~master()
 {
+    if (m_sqs_sender)
+    {
+        m_sqs_sender->stop();
+    }
     if (m_tcp_peer)
     {
         m_tcp_peer->stop();
@@ -113,14 +118,14 @@ void master::run()
             float progress = 100.0f * m_completed_rays.load() / total_rays;
             spdlog::info("Progress: {:.1f}% ({}/{} rays)", progress, m_completed_rays.load(), total_rays);
 
-            if ((progress + 5) >= 100.0f)
+            if ((progress + 2) >= 100.0f)
                 break;
 
             std::this_thread::sleep_for(std::chrono::seconds(5));
         }
 
         m_should_terminate = true;
-        cloud::sqs_send_message(m_worker_info.results_queue_url, "", true);
+        m_sqs_sender->send_terminate();
         m_tcp_peer->send_terminate_all();
 
         if (s_signal_received)

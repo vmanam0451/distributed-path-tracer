@@ -2,6 +2,7 @@
 
 #include "master.hpp"
 #include "models/pixel.hpp"
+#include "path_tracer/core/utils.hpp"
 
 namespace processors
 {
@@ -64,11 +65,11 @@ void master::process_accumulation()
         models::pixel pixel_data{
             .X = static_cast<float>(x),
             .Y = static_cast<float>(y),
-            .color = pixels[x][y].color,
+            .color = core::tonemap_approx_aces(pixels[x][y].color),
             .alpha = pixels[x][y].alpha,
         };
 
-        cloud::sqs_send_message(m_worker_info.results_queue_url, nlohmann::json(pixel_data).dump(), false);
+        m_sqs_sender->enqueue(nlohmann::json(pixel_data).dump());
     }
 }
 } // namespace processors
