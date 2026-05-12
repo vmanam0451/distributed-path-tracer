@@ -502,26 +502,6 @@ void tcp_peer::flush_thread_fn()
 
         std::this_thread::sleep_for(m_flush_interval);
     }
-
-    // Final flush on shutdown
-    spdlog::info("Performing final flush of queued rays...");
-    outbound_ray out;
-    while (m_outbound_queue.try_dequeue(out))
-    {
-        batches[out.target_id].push_back(std::move(out.ray));
-    }
-    for (auto &[target_id, rays] : batches)
-    {
-        if (!rays.empty())
-        {
-            for (size_t i = 0; i < rays.size(); i += TCP_BATCH_SIZE)
-            {
-                size_t end = std::min(i + TCP_BATCH_SIZE, rays.size());
-                std::vector<models::cloud_ray> batch(rays.begin() + i, rays.begin() + end);
-                send_batch_to_peer(target_id, batch);
-            }
-        }
-    }
 }
 
 void tcp_peer::send_batch_to_peer(const std::string &target_id, std::vector<models::cloud_ray> &rays)

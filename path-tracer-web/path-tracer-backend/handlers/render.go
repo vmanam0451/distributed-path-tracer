@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"pathtracerbackend/services"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gin-gonic/gin"
@@ -26,14 +27,14 @@ func cleanupResources(awsConfig aws.Config, queueURL, cloudMapServiceId, ecsClus
 	ctx := context.Background()
 	log.Println("Running render cleanup...")
 
-	if queueURL != "" {
-		services.DeleteSQSQueue(ctx, queueURL, awsConfig)
+	if ecsClusterArn != "" {
+		services.StopTasks(ctx, ecsClusterArn, taskArns, awsConfig)
 	}
 	if cloudMapServiceId != "" {
 		services.DeleteCloudMapService(ctx, cloudMapServiceId, awsConfig)
 	}
-	if ecsClusterArn != "" {
-		services.StopTasks(ctx, ecsClusterArn, taskArns, awsConfig)
+	if queueURL != "" {
+		services.DeleteSQSQueue(ctx, queueURL, awsConfig)
 	}
 
 	log.Println("Render cleanup complete")

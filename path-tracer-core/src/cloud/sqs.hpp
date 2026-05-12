@@ -36,8 +36,8 @@ class sqs_sender
     std::thread m_flush_thread;
     std::atomic<bool> m_running{true};
 
-    // ~85 bytes per pixel JSON → 2000 pixels ≈ 170KB, well under SQS 256KB limit
-    static constexpr size_t PIXELS_PER_MESSAGE = 2000;
+    // ~85 bytes per pixel JSON → 2500 pixels ≈ 212.5KB, well under SQS 256KB limit
+    static constexpr size_t PIXELS_PER_MESSAGE = 2500;
     static constexpr auto FLUSH_INTERVAL = std::chrono::milliseconds(200);
 };
 

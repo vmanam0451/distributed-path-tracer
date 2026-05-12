@@ -68,7 +68,7 @@ func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessag
 				QueueUrl:              aws.String(queueURL),
 				MaxNumberOfMessages:   10,
 				WaitTimeSeconds:       20,
-				MessageAttributeNames: []string{"ALL"},
+				MessageAttributeNames: []string{"All"},
 			})
 			if err != nil {
 				resultCh <- sqsResult{err: err}
@@ -93,7 +93,7 @@ func PollSQSQueue(ctx context.Context, queueURL string, cfg aws.Config, onMessag
 					if _, ok := message.MessageAttributes["Terminate"]; ok {
 						log.Printf("Termination message received, stopping SQS polling")
 						deleteSQSMessage(context.Background(), message, client, queueURL)
-					
+
 						if len(batch) > 0 {
 							onMessages(batch)
 						}
