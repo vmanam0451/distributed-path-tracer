@@ -51,8 +51,13 @@ class WebAppConstruct(Construct):
         )
 
         web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
-            actions=["s3:GetObject", "s3:HeadObject", "s3:ListBucket"],
+            actions=["s3:GetObject", "s3:HeadObject"],
             resources=[Config.get_s3_object_arn()]
+        ))
+
+        web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
+            actions=["s3:ListBucket"],
+            resources=[Config.get_s3_bucket_arn()]
         ))
 
         web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
