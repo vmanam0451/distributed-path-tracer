@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"log"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 )
@@ -13,10 +15,10 @@ func CreateCloudMapService(ctx context.Context, namespaceID, cloudMapService str
 
 	client := servicediscovery.NewFromConfig(cfg)
 	input := &servicediscovery.CreateServiceInput{
-		NamespaceId: 	aws.String(namespaceID),
-		Name: 			aws.String(cloudMapService),
+		NamespaceId: aws.String(namespaceID),
+		Name:        aws.String(cloudMapService),
 	}
-	
+
 	output, err := client.CreateService(ctx, input)
 	if err != nil {
 		log.Printf("Failed to create Cloud Map service: %v", err)
@@ -60,6 +62,27 @@ func DeleteCloudMapService(ctx context.Context, serviceId string, cfg aws.Config
 	DeregisterCloudMapInstances(ctx, serviceId, cfg)
 
 	client := servicediscovery.NewFromConfig(cfg)
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		paginator := servicediscovery.NewListInstancesPaginator(client, &servicediscovery.ListInstancesInput{
+			ServiceId: aws.String(serviceId),
+		})
+		remaining := 0
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(ctx)
+			if err != nil {
+				log.Printf("Failed to list instances while waiting for deregistration: %v", err)
+				break
+			}
+			remaining += len(page.Instances)
+		}
+		if remaining == 0 {
+			break
+		}
+		log.Printf("Waiting for %d Cloud Map instance(s) to finish deregistering...", remaining)
+		time.Sleep(5 * time.Second)
+	}
+
 	_, err := client.DeleteService(ctx, &servicediscovery.DeleteServiceInput{
 		Id: aws.String(serviceId),
 	})
