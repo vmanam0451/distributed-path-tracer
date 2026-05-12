@@ -1,11 +1,12 @@
 from aws_cdk import (
     aws_ecs as ecs,
+    aws_ec2 as ec2,
     aws_iam as iam,
     aws_servicediscovery as servicediscovery,
     aws_ecs_patterns as ecsPatterns,
-    aws_ec2 as ec2,
     Duration,
 )
+from cdk.config import Config
 from constructs import Construct
 
 class WebAppConstruct(Construct):
@@ -18,7 +19,6 @@ class WebAppConstruct(Construct):
                  task_security_group: ec2.ISecurityGroup,
                  **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
-
 
         subnet_ids = [subnet.subnet_id for subnet in vpc.isolated_subnets]
 
@@ -39,7 +39,7 @@ class WebAppConstruct(Construct):
             desired_count=1,
             public_load_balancer=True,
             health_check_grace_period=Duration.seconds(60),
-            idle_timeout=Duration.minutes(30), 
+            idle_timeout=Duration.seconds(1800), # 30 min to accommodate long renders without client disconnects
         )
 
         web_service.target_group.configure_health_check(
@@ -50,23 +50,30 @@ class WebAppConstruct(Construct):
             unhealthy_threshold_count=3,
         )
 
+        web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
+            actions=["s3:GetObject", "s3:HeadObject", "s3:ListBucket"],
+            resources=[Config.get_s3_object_arn()]
+        ))
 
         web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
             actions=["sqs:CreateQueue", "sqs:DeleteQueue", "sqs:SendMessage",
                      "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueUrl"],
             resources=["*"]
         ))
+
         web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
             actions=["servicediscovery:CreateService", "servicediscovery:DeleteService",
                      "servicediscovery:GetService", "servicediscovery:ListServices",
                      "servicediscovery:ListInstances", "servicediscovery:DeregisterInstance"],
             resources=["*"]
         ))
+
         web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
             actions=["ecs:RunTask", "ecs:ListTasks", "ecs:StopTask"],
             resources=["*"]
         ))
 
+        # PassRole so RunTask can assign execution/task roles to workers
         web_service.task_definition.task_role.add_to_policy(iam.PolicyStatement(
             actions=["iam:PassRole"],
             resources=[
@@ -79,4 +86,3 @@ class WebAppConstruct(Construct):
                 }
             }
         ))
-

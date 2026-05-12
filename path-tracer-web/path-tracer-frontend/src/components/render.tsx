@@ -27,7 +27,6 @@ export default function RenderPage({ renderRequest }: { renderRequest: RenderReq
         if (!ctx) return;
 
         const imageData = ctx.createImageData(canvas.width, canvas.height);
-        const imageData2 = ctx.createImageData(canvas.width, canvas.height);
 
         const controller = new AbortController();
 
@@ -73,13 +72,8 @@ export default function RenderPage({ renderRequest }: { renderRequest: RenderReq
                     imageData.data[idx + 2] = B;
                     imageData.data[idx + 3] = A;
 
-                    imageData2.data[idx] = r;
-                    imageData2.data[idx + 1] = g;
-                    imageData2.data[idx + 2] = b;
-                    imageData2.data[idx + 3] = pixel.alpha;
                 }
                 ctx.putImageData(imageData, 0, 0);
-                ctx.putImageData(imageData2, 0, 0);
             },
             onerror(err: Error) {
                 console.error("SSE error:", err);
