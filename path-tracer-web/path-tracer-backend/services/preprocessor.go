@@ -11,16 +11,41 @@ import (
 	"github.com/qmuntal/gltf"
 )
 
-// WorkerSceneInfo describes which mesh primitives a worker is responsible for.
+// SceneInstance is one placement of a glTF primitive in the world. The
+// preprocessor pre-bakes the world-space transform so the worker
+// doesn't have to walk the node graph to find it.
+//
+// WorldMatrix is column-major, glTF-convention.
+type SceneInstance struct {
+	MeshName    string      `json:"mesh_name"`
+	PrimIdx     int         `json:"prim_idx"`
+	WorldMatrix [16]float64 `json:"world_matrix"`
+}
+
+// WorkerSceneInfo describes which primitive *instances* a worker is
+// responsible for. Each entry is independent: two instances of the
+// same mesh on opposite ends of the scene can be assigned to different
+// workers without inflating either worker's AABB.
+//
+// TotalSize is computed by deduplicating instances that share the same
+// (mesh_name, prim_idx) — they share underlying mesh data on the
+// worker, so storage cost is counted once per unique primitive.
 type WorkerSceneInfo struct {
-	Work      map[string][]int `json:"work"`       // mesh name -> list of primitive indices
-	TotalSize float64          `json:"total_size"`  // estimated size in GB
+	Instances []SceneInstance `json:"instances"`
+	TotalSize float64         `json:"total_size"`
 }
 
 // SplitScene is the result of splitting a GLTF scene across workers.
+//
+// AABBTable holds one tight world-space AABB per worker, computed from
+// the primitives actually assigned to that worker (not from the
+// partition cell, which would be looser). Every worker — and the
+// master — receives a copy of this table so each worker can locally
+// pre-filter intersection requests before sending them on the network.
 type SplitScene struct {
 	SplitWork map[int]WorkerSceneInfo `json:"split_work"`
 	TotalSize float64                 `json:"total_size"`
+	AABBTable []AABBEntry             `json:"aabb_table"`
 }
 
 // SubGrid defines the pixel region a worker renders.
@@ -32,8 +57,13 @@ type SubGrid struct {
 }
 
 // WorkerInfo is the full configuration passed to each Fargate worker task.
+//
+// AABBTable is the replicated worker-id -> world-space-AABB table the
+// worker uses to decide which peers a ray could possibly hit before
+// fanning out the intersection query.
 type WorkerInfo struct {
 	SceneInfo         WorkerSceneInfo `json:"scene_info"`
+	AABBTable         []AABBEntry     `json:"aabb_table"`
 	SceneBucket       string          `json:"scene_bucket"`
 	SceneRoot         string          `json:"scene_root"`
 	WorkerID          string          `json:"worker_id"`
@@ -169,69 +199,117 @@ func PreprocessScene(ctx context.Context, cfg aws.Config, bucket, sceneRoot stri
 		return nil, fmt.Errorf("failed to parse scene.gltf: %w", err)
 	}
 
-	if len(doc.Scenes) == 0 {
-		return nil, fmt.Errorf("scene.gltf has no scenes")
+	// Walk the scene graph applying node transforms to get a flat list
+	// of primitives with world-space AABBs. These are the units the
+	// spatial partitioner operates on.
+	prims, err := CollectPrimitives(doc)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Scene has %d unique primitives, splitting across %d workers", len(prims), numWorkers)
+
+	// Pre-compute per-primitive storage size once, keyed by (mesh, prim).
+	// A primitive that gets duplicated across split planes will be sent
+	// to multiple workers, and each worker's TotalSize must account for
+	// the copy it stores — but we don't want to pay the S3 HEAD cost
+	// more than once per primitive.
+	sizes := map[primSizeKey]float64{}
+	var totalSize float64
+	for _, root := range doc.Scenes[0].Nodes {
+		accumulatePrimitiveSizes(ctx, doc, s3Client, bucket, sceneRoot, root, sizes, &totalSize)
 	}
 
-	scene := doc.Scenes[0]
-
-	// Count total primitives
-	totalPrimitives := 0
-	for _, nodeIdx := range scene.Nodes {
-		node := doc.Nodes[nodeIdx]
-		if node.Mesh == nil {
-			continue
-		}
-		totalPrimitives += len(doc.Meshes[*node.Mesh].Primitives)
-	}
-
-	log.Printf("Scene has %d total primitives, splitting across %d workers", totalPrimitives, numWorkers)
+	// Spatial split: median-on-longest-axis recursion with duplication
+	// for primitives that straddle a split plane.
+	leaves := SpatialSplit(prims, numWorkers)
+	LogPartitionSummary(leaves)
 
 	splitScene := &SplitScene{
-		SplitWork: make(map[int]WorkerSceneInfo),
+		SplitWork: make(map[int]WorkerSceneInfo, numWorkers),
+		TotalSize: totalSize,
+		AABBTable: make([]AABBEntry, 0, numWorkers),
 	}
 
-	currentWorkerID := 1
-	currentPrimitive := 0
-	var totalSize float64
+	for i, leaf := range leaves {
+		workerID := i + 1
+		info := WorkerSceneInfo{Instances: make([]SceneInstance, 0, len(leaf))}
+		leafBox := EmptyAABB()
 
-	for _, nodeIdx := range scene.Nodes {
-		node := doc.Nodes[nodeIdx]
-		if node.Mesh == nil {
-			continue
+		// Track unique (mesh, prim) pairs to dedupe size. Two instances
+		// of the same primitive at the same worker share loaded mesh
+		// data, so storage cost is counted once per unique primitive.
+		uniquePrims := map[primSizeKey]struct{}{}
+
+		for _, p := range leaf {
+			info.Instances = append(info.Instances, SceneInstance{
+				MeshName:    p.MeshName,
+				PrimIdx:     p.PrimIdx,
+				WorldMatrix: p.WorldMatrix,
+			})
+			leafBox = leafBox.Union(p.AABB)
+
+			k := primSizeKey{p.MeshName, p.PrimIdx}
+			if _, seen := uniquePrims[k]; !seen {
+				uniquePrims[k] = struct{}{}
+				info.TotalSize += sizes[k]
+			}
 		}
 
+		splitScene.SplitWork[workerID] = info
+		splitScene.AABBTable = append(splitScene.AABBTable, AABBEntry{
+			WorkerID: fmt.Sprintf("%d", workerID),
+			AABB:     leafBox,
+		})
+	}
+
+	log.Printf("Scene split complete: total_size=%.4f GB, workers=%d", totalSize, len(splitScene.SplitWork))
+	return splitScene, nil
+}
+
+// primSizeKey is the lookup key for the per-primitive size cache. Each
+// (mesh, primitive) pair is sized exactly once even if it ends up
+// duplicated across multiple worker leaves.
+type primSizeKey struct {
+	meshName string
+	primIdx  int
+}
+
+// accumulatePrimitiveSizes walks the scene graph recursively (so it
+// matches CollectPrimitives' traversal) and records the storage size
+// for each unique (mesh, primitive) pair. Duplicate sightings — same
+// mesh referenced by multiple nodes — are counted once.
+func accumulatePrimitiveSizes(
+	ctx context.Context,
+	doc *gltf.Document,
+	s3Client *s3.Client,
+	bucket, sceneRoot string,
+	nodeIdx int,
+	sizes map[primSizeKey]float64,
+	totalSize *float64,
+) {
+	if nodeIdx < 0 || nodeIdx >= len(doc.Nodes) {
+		return
+	}
+	node := doc.Nodes[nodeIdx]
+	if node.Mesh != nil {
 		mesh := doc.Meshes[*node.Mesh]
 		meshName := mesh.Name
 		if meshName == "" {
 			meshName = fmt.Sprintf("mesh_%d", *node.Mesh)
 		}
-
-		for primID := range mesh.Primitives {
-			currentPrimitive++
-
-			primSize := getPrimitiveSize(ctx, doc, s3Client, bucket, sceneRoot, mesh.Primitives[primID]) * 1e-9 // bytes to GB // Primitives is []*gltf.Primitive
-			totalSize += primSize
-
-			worker, ok := splitScene.SplitWork[currentWorkerID]
-			if !ok {
-				worker = WorkerSceneInfo{Work: make(map[string][]int)}
+		for primIdx, prim := range mesh.Primitives {
+			k := primSizeKey{meshName, primIdx}
+			if _, seen := sizes[k]; seen {
+				continue
 			}
-			worker.Work[meshName] = append(worker.Work[meshName], primID)
-			worker.TotalSize += primSize
-			splitScene.SplitWork[currentWorkerID] = worker
-
-			// Advance to next worker when this one has its share
-			if currentWorkerID < numWorkers && float64(currentPrimitive) >= float64(totalPrimitives)/float64(numWorkers) {
-				currentWorkerID++
-				currentPrimitive = 0
-			}
+			size := getPrimitiveSize(ctx, doc, s3Client, bucket, sceneRoot, prim) * 1e-9 // bytes -> GB
+			sizes[k] = size
+			*totalSize += size
 		}
 	}
-
-	splitScene.TotalSize = totalSize
-	log.Printf("Scene split complete: total_size=%.4f GB, workers=%d", totalSize, len(splitScene.SplitWork))
-	return splitScene, nil
+	for _, child := range node.Children {
+		accumulatePrimitiveSizes(ctx, doc, s3Client, bucket, sceneRoot, child, sizes, totalSize)
+	}
 }
 
 // BuildWorkerInfos constructs the full WorkerInfo for each worker + the master.
@@ -246,6 +324,7 @@ func BuildWorkerInfos(
 		grid := subGrid[workerID]
 		infos[fmt.Sprintf("%d", workerID)] = WorkerInfo{
 			SceneInfo:         sceneInfo,
+			AABBTable:         splitScene.AABBTable,
 			SceneBucket:       req.SceneBucket,
 			SceneRoot:         req.SceneKey,
 			WorkerID:          fmt.Sprintf("%d", workerID),
@@ -266,9 +345,11 @@ func BuildWorkerInfos(
 		}
 	}
 
-	// Master worker: has no scene work, but gets the results queue and full image dimensions
+	// Master worker: owns no geometry, but still receives the AABB
+	// table so it can route or log intersection traffic if needed.
 	infos["master"] = WorkerInfo{
-		SceneInfo:         WorkerSceneInfo{Work: map[string][]int{}, TotalSize: 0},
+		SceneInfo:         WorkerSceneInfo{Instances: nil, TotalSize: 0},
+		AABBTable:         splitScene.AABBTable,
 		SceneBucket:       req.SceneBucket,
 		SceneRoot:         req.SceneKey,
 		WorkerID:          "MASTER",

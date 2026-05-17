@@ -6,6 +6,11 @@
 
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
+#include <vector>
+
+#include <path_tracer/geometry/aabb.hpp>
+#include <path_tracer/geometry/ray.hpp>
 
 #include "cloud/s3.hpp"
 #include "cloud/tcp_peer.hpp"
@@ -50,6 +55,15 @@ class worker : public application
 
     void process_ray_from_queue(models::cloud_ray &ray);
 
+    // Build the cached AABB table from m_worker_info.aabb_table. Called
+    // once at startup, before any intersection threads are running.
+    void build_aabb_table_cache();
+
+    // Returns the worker IDs whose world-space AABB this ray could
+    // possibly hit. Used to skip TCP fan-out to workers that own
+    // geometry the ray can never touch.
+    std::vector<std::string> aabb_filter_candidates(const geometry::ray &ray) const;
+
     std::vector<uint8_t> render() const;
 
     // TODO:
@@ -86,5 +100,27 @@ class worker : public application
 
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_object_intersection_results;
     std::map<uint64_t, std::pair<int, models::cloud_ray>> m_direct_lighting_intersection_results;
+
+    // Pre-baked (worker_id, geometry::aabb) pairs derived once from the
+    // replicated aabb_table in worker_info. Used for ray-AABB pre-filter
+    // to decide which peers a ray could possibly hit.
+    struct cached_aabb
+    {
+        std::string worker_id;
+        geometry::aabb box;
+    };
+    std::vector<cached_aabb> m_aabb_table_cache;
+
+    // Expected number of CALCULATE responses we asked for, per ray uuid.
+    // Result collectors compare incoming response counts against this
+    // (instead of the old hard-coded num_workers) to know when a ray's
+    // fan-out is complete.
+    //
+    // Written by intersection-fan-out threads, read+erased by the result
+    // thread, so we need a mutex around each map.
+    std::unordered_map<uint64_t, int> m_object_expected_responses;
+    std::mutex m_object_expected_mutex;
+    std::unordered_map<uint64_t, int> m_direct_lighting_expected_responses;
+    std::mutex m_direct_lighting_expected_mutex;
 };
 } // namespace processors

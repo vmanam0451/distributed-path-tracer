@@ -2,6 +2,8 @@
 
 #include "pch.hpp"
 
+#include <array>
+
 using mesh_name = std::string;
 using primitives = std::vector<int>;
 using worker_id = std::string;
@@ -9,28 +11,95 @@ using worker_id = std::string;
 namespace models
 {
 
+// scene_instance is one placement of a glTF primitive in world space.
+// The preprocessor pre-bakes the world-space transform so the worker
+// doesn't have to walk the node graph to compute it.
+//
+// world_matrix is column-major, glTF-convention.
+struct scene_instance
+{
+    std::string mesh_name;
+    int prim_idx = 0;
+    std::array<float, 16> world_matrix{};
+};
+
+inline void to_json(nlohmann::json &j, const scene_instance &s)
+{
+    j = nlohmann::json{
+        {"mesh_name", s.mesh_name},
+        {"prim_idx", s.prim_idx},
+        {"world_matrix", s.world_matrix},
+    };
+}
+
+inline void from_json(const nlohmann::json &j, scene_instance &s)
+{
+    if (j.contains("mesh_name"))
+        j.at("mesh_name").get_to(s.mesh_name);
+    if (j.contains("prim_idx"))
+        j.at("prim_idx").get_to(s.prim_idx);
+    if (j.contains("world_matrix"))
+        j.at("world_matrix").get_to(s.world_matrix);
+}
+
+// work_info now describes a flat list of instance placements. Two
+// instances of the same mesh can be on opposite ends of the scene
+// without inflating any single worker's bounding box.
 struct work_info
 {
-    std::map<mesh_name, primitives> work;
+    std::vector<scene_instance> instances;
     float total_size = 0.0f;
 };
 
 inline void to_json(nlohmann::json &j, const work_info &w)
 {
-    j = nlohmann::json{{"work", w.work}, {"total_size", w.total_size}};
+    j = nlohmann::json{{"instances", w.instances}, {"total_size", w.total_size}};
 }
 
 inline void from_json(const nlohmann::json &j, work_info &w)
 {
-    if (j.contains("work"))
-        j.at("work").get_to(w.work);
+    if (j.contains("instances"))
+        j.at("instances").get_to(w.instances);
     if (j.contains("total_size"))
         j.at("total_size").get_to(w.total_size);
+}
+
+// aabb_entry pairs a worker id with the world-space AABB of all
+// geometry assigned to that worker. The full table is replicated to
+// every worker so each can locally pre-filter ray dispatches.
+struct aabb_entry
+{
+    std::string worker_id;
+    std::array<float, 3> min{};
+    std::array<float, 3> max{};
+};
+
+inline void to_json(nlohmann::json &j, const aabb_entry &a)
+{
+    j = nlohmann::json{
+        {"worker_id", a.worker_id},
+        {"aabb", {{"min", a.min}, {"max", a.max}}},
+    };
+}
+
+inline void from_json(const nlohmann::json &j, aabb_entry &a)
+{
+    if (j.contains("worker_id"))
+        j.at("worker_id").get_to(a.worker_id);
+    if (j.contains("aabb"))
+    {
+        const auto &b = j.at("aabb");
+        if (b.contains("min"))
+            b.at("min").get_to(a.min);
+        if (b.contains("max"))
+            b.at("max").get_to(a.max);
+    }
 }
 
 struct worker_info
 {
     work_info scene_info;
+    std::vector<aabb_entry> aabb_table;
     std::string scene_bucket;
     std::string scene_root;
     std::string worker_id;
@@ -56,6 +125,7 @@ struct worker_info
 inline void to_json(nlohmann::json &j, const worker_info &w)
 {
     j = nlohmann::json{{"scene_info", w.scene_info},
+                       {"aabb_table", w.aabb_table},
                        {"scene_bucket", w.scene_bucket},
                        {"scene_root", w.scene_root},
                        {"worker_id", w.worker_id},
@@ -79,6 +149,8 @@ inline void from_json(const nlohmann::json &j, worker_info &w)
 {
     if (j.contains("scene_info"))
         j.at("scene_info").get_to(w.scene_info);
+    if (j.contains("aabb_table"))
+        j.at("aabb_table").get_to(w.aabb_table);
     if (j.contains("scene_bucket"))
         j.at("scene_bucket").get_to(w.scene_bucket);
     if (j.contains("scene_root"))

@@ -15,6 +15,10 @@ models::intersect_result_min distributed_scene::intersect_min_result(const geome
     {
         stack.push(entity.get());
     }
+    for (const auto &entity : m_instance_entities)
+    {
+        stack.push(entity.get());
+    }
 
     model::intersection nearest_hit;
 
@@ -81,6 +85,10 @@ models::intersect_result distributed_scene::intersect(const geometry::ray &ray) 
 {
     std::stack<entity *> stack;
     for (const auto &[_, entity] : m_entities)
+    {
+        stack.push(entity.get());
+    }
+    for (const auto &entity : m_instance_entities)
     {
         stack.push(entity.get());
     }

@@ -1,19 +1,46 @@
 #include <filesystem>
 #include <path_tracer/image/image_texture.hpp>
 #include <stdexcept>
+#include <unordered_map>
+#include <utility>
 
 #include "cloud/s3.hpp"
 #include "scene.hpp"
 
 namespace cloud
 {
+
+// Build a scene::transform that exactly reproduces a column-major 4x4
+// world matrix. Because geometry entities created by the per-instance
+// loader have no parent, this local transform IS their global
+// transform — no TRS decomposition required.
+static scene::transform transform_from_world_matrix(const std::array<float, 16> &m)
+{
+    math::fvec3 origin(m[12], m[13], m[14]);
+    math::fmat3 basis(math::fvec3(m[0], m[1], m[2]),  // column 0
+                      math::fvec3(m[4], m[5], m[6]),  // column 1
+                      math::fvec3(m[8], m[9], m[10])); // column 2
+    return scene::transform(origin, basis);
+}
+
+// Apply the preprocessor's "mesh_<index>" fallback so that unnamed
+// meshes can still be looked up by the worker. The Go preprocessor
+// uses the same rule (services.CollectPrimitives), so both sides
+// agree on the wire-side mesh name.
+static std::string effective_mesh_name(cgltf_mesh *mesh, size_t index)
+{
+    if (mesh->name && *mesh->name != '\0')
+        return std::string(mesh->name);
+    return "mesh_" + std::to_string(index);
+}
+
 void distributed_scene::load_scene(const std::string &scene_s3_bucket, const std::string &scene_s3_root,
-                                   const std::map<mesh_name, primitives> &scene_work,
+                                   const std::vector<models::scene_instance> &instances,
                                    const std::filesystem::path &gltf_path)
 {
     this->m_scene_s3_bucket = scene_s3_bucket;
     this->m_scene_s3_root = scene_s3_root;
-    this->scene_work = scene_work;
+    this->scene_instances = instances;
 
     uint32_t camera_index = 0;
     uint32_t sun_light_index = 0;
@@ -55,6 +82,8 @@ void distributed_scene::load_scene(const std::string &scene_s3_bucket, const std
         }
     }
 
+    // Walk the node graph only for camera + lights. Geometry placement
+    // is driven by the instance list further down.
     for (int i = 0; i < main_scene.nodes_count; i++)
     {
         process_node(main_scene.nodes[i], cgltf_camera, cgltf_sun_light, nullptr, gltf_path);
@@ -63,6 +92,77 @@ void distributed_scene::load_scene(const std::string &scene_s3_bucket, const std
     if (!m_camera)
         throw std::runtime_error("Scene is missing a camera.");
 
+    // Build a (effective name -> cgltf_mesh*) lookup so we can match
+    // up instance entries with their underlying glTF mesh.
+    std::unordered_map<std::string, cgltf_mesh *> mesh_by_name;
+    mesh_by_name.reserve(m_data->meshes_count);
+    for (size_t i = 0; i < m_data->meshes_count; i++)
+    {
+        cgltf_mesh *mesh = &m_data->meshes[i];
+        mesh_by_name[effective_mesh_name(mesh, i)] = mesh;
+    }
+
+    // Per-(mesh, prim) cache so two instances of the same primitive
+    // on this worker share one parsed core::mesh and core::material.
+    std::map<std::pair<std::string, int>, std::shared_ptr<core::mesh>> mesh_cache;
+    std::map<std::pair<std::string, int>, std::shared_ptr<core::material>> material_cache;
+
+    for (size_t inst_idx = 0; inst_idx < scene_instances.size(); inst_idx++)
+    {
+        const auto &inst = scene_instances[inst_idx];
+
+        auto it = mesh_by_name.find(inst.mesh_name);
+        if (it == mesh_by_name.end())
+        {
+            spdlog::warn("Instance {} references unknown mesh '{}'", inst_idx, inst.mesh_name);
+            continue;
+        }
+        cgltf_mesh *cmesh = it->second;
+        if (inst.prim_idx < 0 || static_cast<size_t>(inst.prim_idx) >= cmesh->primitives_count)
+        {
+            spdlog::warn("Instance {} references invalid prim_idx {} on mesh '{}'", inst_idx, inst.prim_idx,
+                         inst.mesh_name);
+            continue;
+        }
+        cgltf_primitive *primitive = cmesh->primitives + inst.prim_idx;
+
+        auto key = std::make_pair(inst.mesh_name, inst.prim_idx);
+
+        std::shared_ptr<core::mesh> mesh;
+        if (auto mit = mesh_cache.find(key); mit != mesh_cache.end())
+        {
+            mesh = mit->second;
+        }
+        else
+        {
+            mesh = get_mesh(primitive, gltf_path);
+            mesh_cache[key] = mesh;
+        }
+
+        std::shared_ptr<core::material> material;
+        if (auto matit = material_cache.find(key); matit != material_cache.end())
+        {
+            material = matit->second;
+        }
+        else
+        {
+            material = get_material(primitive);
+            material_cache[key] = material;
+        }
+
+        auto entity = std::make_shared<scene::entity>();
+        // Name is informational only — instance entities live in
+        // m_instance_entities, not in the name-keyed m_entities map.
+        entity->set_name(inst.mesh_name + "#" + std::to_string(inst.prim_idx) + "@" + std::to_string(inst_idx));
+        entity->set_local_transform(transform_from_world_matrix(inst.world_matrix));
+
+        auto model = entity->add_component<scene::model>();
+        model->surfaces.push_back({mesh, material});
+        model->recalculate_aabb();
+
+        m_instance_entities.push_back(entity);
+    }
+
     cgltf_free(m_data);
     m_data = nullptr;
 
@@ -70,11 +170,18 @@ void distributed_scene::load_scene(const std::string &scene_s3_bucket, const std
     m_buffers_loaded.clear();
 }
 
+// process_node walks the node hierarchy to assemble entities for the
+// camera and sun light, preserving the parent chain so that nested
+// camera/light transforms compose correctly. Mesh loading is no
+// longer done here — geometry is loaded from the explicit instance
+// list in load_scene using pre-baked world matrices.
+//
+// The full hierarchy is retained (top-level entities go into
+// m_entities, descendants live as children of their parent) so the
+// camera's get_global_transform() can walk up to its ancestors.
 void distributed_scene::process_node(cgltf_node *cgltf_node, cgltf_camera *cgltf_camera, cgltf_light *cgltf_sun_light,
                                      scene::entity *parent, const std::filesystem::path &gltf_path)
 {
-    // Set Properties
-
     auto entity = std::make_shared<scene::entity>();
 
     if (cgltf_node->camera)
@@ -82,7 +189,7 @@ void distributed_scene::process_node(cgltf_node *cgltf_node, cgltf_camera *cgltf
     else if (cgltf_node->light)
         entity->set_name(cgltf_node->light->name);
     else
-        entity->set_name(cgltf_node->name);
+        entity->set_name(cgltf_node->name ? cgltf_node->name : "");
 
     float local_transform[16];
     cgltf_node_transform_local(cgltf_node, local_transform);
@@ -102,30 +209,10 @@ void distributed_scene::process_node(cgltf_node *cgltf_node, cgltf_camera *cgltf
 
     entity->set_local_transform(scene::transform::make(translation, rotation, scale));
 
-    // Add components
+    // (Geometry no longer attached here. The per-instance loader in
+    // load_scene handles that using pre-baked world matrices.)
 
-    if (cgltf_node->mesh)
-    {
-        auto model = entity->add_component<scene::model>();
-        primitives model_primitives = scene_work[cgltf_node->mesh->name];
-
-        for (uint32_t i = 0; i < cgltf_node->mesh->primitives_count; i++)
-        {
-            if (std::find(model_primitives.begin(), model_primitives.end(), i) == model_primitives.end())
-            {
-                continue;
-            }
-
-            cgltf_primitive *primitive = cgltf_node->mesh->primitives + i;
-            std::shared_ptr<core::mesh> mesh = get_mesh(primitive, gltf_path);
-            std::shared_ptr<core::material> material = get_material(primitive);
-            model->surfaces.push_back({mesh, material});
-        }
-
-        model->recalculate_aabb();
-    }
-
-    if (entity->get_name() == std::string(cgltf_camera->name))
+    if (cgltf_camera && cgltf_camera->name && entity->get_name() == std::string(cgltf_camera->name))
     {
         auto camera = entity->add_component<scene::camera>();
 
@@ -135,7 +222,7 @@ void distributed_scene::process_node(cgltf_node *cgltf_node, cgltf_camera *cgltf
         camera->set_fov(vfov);
     }
 
-    if (cgltf_sun_light && entity->get_name() == std::string(cgltf_sun_light->name))
+    if (cgltf_sun_light && cgltf_sun_light->name && entity->get_name() == std::string(cgltf_sun_light->name))
     {
         auto sun_light = entity->add_component<scene::sun_light>();
 

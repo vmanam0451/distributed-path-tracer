@@ -20,7 +20,8 @@ class distributed_scene
 {
   public:
     void load_scene(const std::string &scene_s3_bucket, const std::string &scene_s3_root,
-                    const std::map<mesh_name, primitives> &scene_work, const std::filesystem::path &gltf_path);
+                    const std::vector<models::scene_instance> &instances,
+                    const std::filesystem::path &gltf_path);
     models::intersect_result_min intersect_min_result(const geometry::ray &ray) const;
     models::intersect_result intersect(const geometry::ray &ray) const;
 
@@ -40,9 +41,13 @@ class distributed_scene
 
     std::string m_scene_s3_bucket;
     std::string m_scene_s3_root;
-    std::map<mesh_name, primitives> scene_work;
+    std::vector<models::scene_instance> scene_instances;
 
     std::unordered_map<std::string, std::shared_ptr<scene::entity>> m_entities;
+    // Geometry entities created from the per-instance schema. Kept in
+    // a separate container so synthesized instance names can't collide
+    // with author-given glTF node names in m_entities.
+    std::vector<std::shared_ptr<scene::entity>> m_instance_entities;
     std::shared_ptr<scene::entity> m_camera;
     std::shared_ptr<scene::entity> m_sun_light;
     std::shared_ptr<image::texture> m_environment;

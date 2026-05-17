@@ -37,9 +37,13 @@ void worker::run()
     this->download_gltf_file();
 
     auto &info = m_worker_info;
-    auto &work = m_worker_info.scene_info.work;
+    auto &instances = m_worker_info.scene_info.instances;
 
-    m_scene.load_scene(m_worker_info.scene_bucket, m_worker_info.scene_root, work, m_gltf_file_path);
+    m_scene.load_scene(m_worker_info.scene_bucket, m_worker_info.scene_root, instances, m_gltf_file_path);
+
+    // Pre-bake the AABB table into geometry::aabb form so ray-AABB
+    // pre-filter doesn't reconstruct it on every ray.
+    build_aabb_table_cache();
 
     m_should_terminate = false;
 
@@ -230,6 +234,36 @@ void worker::process_ray_from_queue(models::cloud_ray &ray)
     {
         spdlog::error("Unknown ray type: {}", static_cast<int>(ray.type));
     }
+}
+
+void worker::build_aabb_table_cache()
+{
+    m_aabb_table_cache.clear();
+    m_aabb_table_cache.reserve(m_worker_info.aabb_table.size());
+    for (const auto &entry : m_worker_info.aabb_table)
+    {
+        m_aabb_table_cache.push_back(cached_aabb{
+            entry.worker_id,
+            geometry::aabb(math::fvec3(entry.min[0], entry.min[1], entry.min[2]),
+                           math::fvec3(entry.max[0], entry.max[1], entry.max[2])),
+        });
+    }
+    spdlog::info("AABB table cached: {} workers", m_aabb_table_cache.size());
+}
+
+std::vector<std::string> worker::aabb_filter_candidates(const geometry::ray &ray) const
+{
+    std::vector<std::string> hits;
+    hits.reserve(m_aabb_table_cache.size());
+    for (const auto &entry : m_aabb_table_cache)
+    {
+        // Degenerate / empty AABBs (min > max on any axis) are reported
+        // as no-hit by geometry::aabb::intersect, so we don't need a
+        // special-case for workers that own no geometry.
+        if (entry.box.intersect(ray).has_hit())
+            hits.push_back(entry.worker_id);
+    }
+    return hits;
 }
 
 } // namespace processors
