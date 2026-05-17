@@ -55,14 +55,12 @@ func pickWebTCPPort() int {
 	return 0
 }
 
-// webAdvertisedHost is the address the master will dial. In Fargate this is
-// the container's private IP / service-discovery name; locally it's whatever
-// the workers can reach.
+// webAdvertisedHost is the address the master will dial. Resolution lives in
+// services.ResolveAdvertisedHost so the precedence rules (env override → ECS
+// task metadata → local interface → loopback) stay testable and out of the
+// HTTP handler.
 func webAdvertisedHost() string {
-	if v := os.Getenv("WEB_ADVERTISED_HOST"); v != "" {
-		return v
-	}
-	return "127.0.0.1"
+	return services.ResolveAdvertisedHost()
 }
 
 func Render(c *gin.Context) {
