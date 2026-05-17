@@ -1,6 +1,5 @@
 #include "master.hpp"
 #include "cloud/s3.hpp"
-#include "cloud/sqs.hpp"
 #include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
 #include "path_tracer/core/utils.hpp"
@@ -65,15 +64,10 @@ master::master(const models::worker_info &worker_info)
     this->m_worker_info = worker_info;
 
     m_tcp_peer = std::make_shared<cloud::tcp_peer>(worker_info.worker_id, cloud::DEFAULT_TCP_PORT);
-    m_sqs_sender = std::make_unique<cloud::sqs_sender>(worker_info.results_queue_url);
 }
 
 master::~master()
 {
-    if (m_sqs_sender)
-    {
-        m_sqs_sender->stop();
-    }
     if (m_tcp_peer)
     {
         m_tcp_peer->stop();
@@ -95,16 +89,30 @@ void master::run()
     for (auto &column : pixels)
         column.resize(resolution.y, {math::fvec3::zero, 0, false, 0});
 
-    int expected_peers = m_worker_info.num_workers;
-    spdlog::info("Starting TCP peer for master (expecting {} worker peers)", expected_peers);
+    // Master peers = N workers (discovered via Cloud Map) + 1 web backend
+    // (registered statically using the host/port baked into worker_info).
+    const bool has_web_peer = !m_worker_info.web_host.empty() && m_worker_info.web_port != 0;
+    int expected_peers = m_worker_info.num_workers + (has_web_peer ? 1 : 0);
+    spdlog::info("Starting TCP peer for master (expecting {} peers: {} workers + {} web)", expected_peers,
+                 m_worker_info.num_workers, has_web_peer ? 1 : 0);
     m_tcp_peer->set_ray_callback([this](models::cloud_ray &ray) { process_ray_from_queue(ray); });
     m_tcp_peer->set_terminate_callback([this]() { m_should_terminate = true; });
     m_tcp_peer->start(m_worker_info.cloud_map_namespace, m_worker_info.cloud_map_service,
                       m_worker_info.cloud_map_service_id, expected_peers, m_worker_info.aws_region);
 
+    if (has_web_peer)
+    {
+        spdlog::info("Registering web backend peer at {}:{}", m_worker_info.web_host, m_worker_info.web_port);
+        m_tcp_peer->register_peer(models::WEB_ID, m_worker_info.web_host, m_worker_info.web_port);
+    }
+    else
+    {
+        spdlog::warn("No web_host/web_port configured; pixel batches will be discarded");
+    }
+
     if (!m_tcp_peer->wait_for_peers(120))
     {
-        spdlog::error("Failed to connect to all workers, aborting");
+        spdlog::error("Failed to connect to all peers, aborting");
         return;
     }
 
@@ -125,7 +133,12 @@ void master::run()
         }
 
         m_should_terminate = true;
-        m_sqs_sender->send_terminate();
+        // Give the pixel flush thread a moment to push the last accumulated
+        // batch to the web backend before we tear connections down. The flush
+        // interval is 100ms, so 500ms is comfortably more than one tick.
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        // TCP TERMINATE is broadcast to every connected peer, including the
+        // web backend, which closes its SSE stream when it sees it.
         m_tcp_peer->send_terminate_all();
 
         if (s_signal_received)

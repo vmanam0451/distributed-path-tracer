@@ -58,8 +58,9 @@ void tcp_peer::start(const std::string &namespace_name, const std::string &servi
         }
     });
 
-    // Start flush thread
+    // Start flush threads (rays + pixels share the transport but use separate queues)
     m_flush_thread = std::thread(&tcp_peer::flush_thread_fn, this);
+    m_pixel_flush_thread = std::thread(&tcp_peer::pixel_flush_thread_fn, this);
 
     // Register with Cloud Map and discover peers
     if (!namespace_name.empty() && !service_name.empty())
@@ -115,6 +116,11 @@ void tcp_peer::stop()
     if (m_flush_thread.joinable())
     {
         m_flush_thread.join();
+    }
+
+    if (m_pixel_flush_thread.joinable())
+    {
+        m_pixel_flush_thread.join();
     }
 
     // Wait for reader threads
@@ -285,6 +291,11 @@ void tcp_peer::process_message(const std::vector<uint8_t> &data, MessageType typ
         spdlog::info("Received handshake from worker {}", peer_id);
         break;
     }
+    case MessageType::PIXEL_BATCH: {
+        // Pixels flow from master -> web only; C++ peers don't consume them.
+        spdlog::debug("Ignoring inbound PIXEL_BATCH ({} bytes)", data.size());
+        break;
+    }
     default:
         spdlog::warn("Unknown message type: {}", static_cast<uint32_t>(type));
         break;
@@ -449,7 +460,7 @@ void tcp_peer::enqueue_ray(const models::cloud_ray &ray, const std::string &targ
         std::lock_guard<std::mutex> lock(m_peers_mutex);
         for (const auto &peer : m_peers)
         {
-            if (peer->worker_id == models::MASTER_ID)
+            if (peer->worker_id == models::MASTER_ID || peer->worker_id == models::WEB_ID)
                 continue;
 
             outbound_ray out;
@@ -467,6 +478,20 @@ void tcp_peer::enqueue_ray(const models::cloud_ray &ray, const std::string &targ
         m_outbound_queue.enqueue(out);
         m_rays_enqueued.fetch_add(1);
     }
+}
+
+void tcp_peer::enqueue_pixel(const models::pixel &pixel, const std::string &target_id)
+{
+    outbound_pixel out;
+    out.pixel = pixel;
+    out.target_id = target_id;
+    m_outbound_pixel_queue.enqueue(out);
+}
+
+void tcp_peer::register_peer(const std::string &worker_id, const std::string &host, uint16_t port)
+{
+    peer_info peer{worker_id, host, port};
+    add_peer(peer);
 }
 
 void tcp_peer::flush_thread_fn()
@@ -501,6 +526,143 @@ void tcp_peer::flush_thread_fn()
         }
 
         std::this_thread::sleep_for(m_flush_interval);
+    }
+}
+
+void tcp_peer::pixel_flush_thread_fn()
+{
+    std::unordered_map<std::string, std::vector<models::pixel>> batches;
+
+    while (m_running)
+    {
+        outbound_pixel out;
+        size_t dequeued = 0;
+        while (m_outbound_pixel_queue.try_dequeue(out) && dequeued < PIXEL_BATCH_SIZE * 4)
+        {
+            batches[out.target_id].push_back(std::move(out.pixel));
+            dequeued++;
+        }
+
+        for (auto &[target_id, pixels] : batches)
+        {
+            if (pixels.empty())
+                continue;
+
+            for (size_t i = 0; i < pixels.size(); i += PIXEL_BATCH_SIZE)
+            {
+                size_t end = std::min(i + PIXEL_BATCH_SIZE, pixels.size());
+                std::vector<models::pixel> batch(pixels.begin() + i, pixels.begin() + end);
+                send_pixel_batch_to_peer(target_id, batch);
+            }
+            pixels.clear();
+        }
+
+        std::this_thread::sleep_for(m_pixel_flush_interval);
+    }
+
+    // Final drain on shutdown — best effort
+    {
+        outbound_pixel out;
+        while (m_outbound_pixel_queue.try_dequeue(out))
+        {
+            batches[out.target_id].push_back(std::move(out.pixel));
+        }
+        for (auto &[target_id, pixels] : batches)
+        {
+            if (pixels.empty())
+                continue;
+            for (size_t i = 0; i < pixels.size(); i += PIXEL_BATCH_SIZE)
+            {
+                size_t end = std::min(i + PIXEL_BATCH_SIZE, pixels.size());
+                std::vector<models::pixel> batch(pixels.begin() + i, pixels.begin() + end);
+                send_pixel_batch_to_peer(target_id, batch);
+            }
+            pixels.clear();
+        }
+    }
+}
+
+void tcp_peer::send_pixel_batch_to_peer(const std::string &target_id, std::vector<models::pixel> &pixels)
+{
+    if (pixels.empty())
+        return;
+
+    std::shared_ptr<peer_connection> conn;
+    {
+        std::lock_guard<std::mutex> lock(m_peers_mutex);
+        for (auto &p : m_peers)
+        {
+            if (p->worker_id == target_id)
+            {
+                conn = p;
+                break;
+            }
+        }
+    }
+
+    if (!conn)
+    {
+        spdlog::warn("Pixel target peer {} not found, re-queueing {} pixels", target_id, pixels.size());
+        for (const auto &px : pixels)
+        {
+            outbound_pixel out;
+            out.pixel = px;
+            out.target_id = target_id;
+            m_outbound_pixel_queue.enqueue(out);
+        }
+        return;
+    }
+
+    if (!conn->connected.load())
+    {
+        for (const auto &px : pixels)
+        {
+            outbound_pixel out;
+            out.pixel = px;
+            out.target_id = target_id;
+            m_outbound_pixel_queue.enqueue(out);
+        }
+
+        if (conn->retry_count.load() == 0 || conn->retry_count.load() >= MAX_CONNECT_RETRIES)
+        {
+            conn->retry_count = 0;
+            spdlog::warn("Pixel peer {} disconnected, triggering reconnect ({} pixels re-queued)", target_id,
+                         pixels.size());
+            schedule_reconnect(target_id, BASE_RETRY_DELAY_MS);
+        }
+        return;
+    }
+
+    auto data = serialize_pixels(pixels);
+    bool success = send_raw_message_sync(*conn, MessageType::PIXEL_BATCH, data);
+
+    if (success)
+    {
+        m_batches_sent.fetch_add(1);
+        conn->consecutive_failures = 0;
+    }
+    else
+    {
+        m_send_failures.fetch_add(1);
+        int failures = conn->consecutive_failures.fetch_add(1) + 1;
+
+        spdlog::warn("Failed to send pixel batch to {}, re-queueing {} pixels (consecutive failures: {})", target_id,
+                     pixels.size(), failures);
+
+        for (const auto &px : pixels)
+        {
+            outbound_pixel out;
+            out.pixel = px;
+            out.target_id = target_id;
+            m_outbound_pixel_queue.enqueue(out);
+        }
+
+        if (failures >= MAX_CONSECUTIVE_FAILURES)
+        {
+            spdlog::warn("Too many consecutive pixel failures for {}, triggering reconnect", target_id);
+            conn->connected = false;
+            schedule_reconnect(target_id, BASE_RETRY_DELAY_MS);
+        }
     }
 }
 
@@ -933,6 +1095,16 @@ std::vector<models::cloud_ray> tcp_peer::deserialize_rays_binary(const std::vect
     std::string str(data.begin(), data.end());
     auto j = json::parse(str);
     return j["rays"].get<std::vector<models::cloud_ray>>();
+}
+
+std::vector<uint8_t> tcp_peer::serialize_pixels(const std::vector<models::pixel> &pixels)
+{
+    // Wire format: a top-level JSON array of pixels, mirroring what the
+    // previous SQS sender produced. The Go backend parses each PIXEL_BATCH
+    // message body as a single JSON array of pixel objects.
+    json j = pixels;
+    std::string str = j.dump();
+    return std::vector<uint8_t>(str.begin(), str.end());
 }
 
 } // namespace cloud

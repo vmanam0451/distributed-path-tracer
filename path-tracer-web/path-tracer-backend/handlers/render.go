@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"pathtracerbackend/services"
+	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -23,21 +25,42 @@ type renderRequest struct {
 	Y           int    `json:"Y" binding:"required"`
 }
 
-func cleanupResources(awsConfig aws.Config, queueURL, cloudMapServiceId, ecsClusterArn string, taskArns []string) {
+func cleanupResources(awsConfig aws.Config, cloudMapServiceId, ecsClusterArn string, taskArns []string, listener *services.TCPPeerListener) {
 	ctx := context.Background()
 	log.Println("Running render cleanup...")
 
+	if listener != nil {
+		listener.Stop()
+	}
 	if ecsClusterArn != "" {
 		services.StopTasks(ctx, ecsClusterArn, taskArns, awsConfig)
 	}
 	if cloudMapServiceId != "" {
 		services.DeleteCloudMapService(ctx, cloudMapServiceId, awsConfig)
 	}
-	if queueURL != "" {
-		services.DeleteSQSQueue(ctx, queueURL, awsConfig)
-	}
 
 	log.Println("Render cleanup complete")
+}
+
+// pickWebTCPPort decides which port the per-render TCP listener binds to.
+// WEB_TCP_PORT can be set explicitly (typically when the container exposes
+// a known port to the VPC); otherwise we let the OS choose ephemerally,
+// which is fine for local dev.
+func pickWebTCPPort() int {
+	if v := os.Getenv("WEB_TCP_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			return p
+		}
+	}
+	return 0
+}
+
+// webAdvertisedHost is the address the master will dial. Resolution lives in
+// services.ResolveAdvertisedHost so the precedence rules (env override → ECS
+// task metadata → local interface → loopback) stay testable and out of the
+// HTTP handler.
+func webAdvertisedHost() string {
+	return services.ResolveAdvertisedHost()
 }
 
 func Render(c *gin.Context) {
@@ -64,12 +87,12 @@ func Render(c *gin.Context) {
 	renderID := uuid.New().String()[:8]
 	serviceName := req.SceneName + "-" + renderID
 
-	var queueURL string
 	var cloudMapServiceId string
 	var taskArns []string
+	var listener *services.TCPPeerListener
 
 	defer func() {
-		cleanupResources(awsConfig, queueURL, cloudMapServiceId, ecsClusterArn, taskArns)
+		cleanupResources(awsConfig, cloudMapServiceId, ecsClusterArn, taskArns, listener)
 	}()
 
 	c.Header("Content-Type", "text/event-stream")
@@ -95,11 +118,31 @@ func Render(c *gin.Context) {
 		return
 	}
 
-	sendStatus("Creating SQS queue...")
-	queueName := "render-results-" + renderID
-	queueURL, err = services.CreateSQSQueue(setupCtx, queueName, awsConfig)
+	// Start the TCP listener BEFORE launching workers so the master can dial
+	// in as soon as it boots. The master retries with backoff if we're slow,
+	// but this avoids the spurious reconnect storm on slow starts.
+	sendStatus("Starting pixel listener...")
+	pixelBatches := make(chan string, 256)
+	terminated := make(chan struct{})
+	listener = services.NewTCPPeerListener(
+		pickWebTCPPort(),
+		func(body string) {
+			// Non-blocking: drop the batch if the client is dawdling. The
+			// channel is large enough that this should never fire in practice.
+			select {
+			case pixelBatches <- body:
+			default:
+				log.Printf("Pixel batch channel full; dropping batch (%d bytes)", len(body))
+			}
+		},
+		func() {
+			close(terminated)
+		},
+	)
+
+	boundPort, err := listener.Start(setupCtx)
 	if err != nil {
-		sendError("Failed to create SQS queue")
+		sendError("Failed to start TCP listener: " + err.Error())
 		return
 	}
 
@@ -122,8 +165,9 @@ func Render(c *gin.Context) {
 		CloudMapNamespace: namespaceName,
 		CloudMapService:   serviceName,
 		CloudMapServiceId: cloudMapServiceId,
-		ResultsQueueURL:   queueURL,
 		AWSRegion:         awsRegion,
+		WebHost:           webAdvertisedHost(),
+		WebPort:           boundPort,
 	})
 
 	taskArns, err = services.LaunchWorkerTasks(setupCtx, workerInfos, awsConfig)
@@ -133,19 +177,36 @@ func Render(c *gin.Context) {
 	}
 
 	sendStatus("Rendering...")
-	err = services.PollSQSQueue(setupCtx, queueURL, awsConfig, func(messages []string) {
-		// Each SQS message body is already a JSON array of pixels: "[{p1},{p2},...]"
-		for _, msg := range messages {
-			c.SSEvent("renderUpdate", gin.H{"message": msg})
-		}
-		c.Writer.Flush()
-	}, func() {
-		c.SSEvent("keepalive", "")
-		c.Writer.Flush()
-	})
 
-	if err != nil {
-		log.Printf("Polling ended: %v", err)
+	// Stream pixel batches over SSE until the master signals termination,
+	// the inbound TCP connection drops, or the client disconnects.
+	keepaliveTicker := time.NewTicker(1 * time.Second)
+	defer keepaliveTicker.Stop()
+
+streamLoop:
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			log.Printf("Client disconnected, stopping render stream")
+			break streamLoop
+		case batch := <-pixelBatches:
+			c.SSEvent("renderUpdate", gin.H{"message": batch})
+			c.Writer.Flush()
+		case <-keepaliveTicker.C:
+			c.SSEvent("keepalive", "")
+			c.Writer.Flush()
+		case <-terminated:
+			// Drain anything still buffered so the final frame isn't lost.
+			for {
+				select {
+				case batch := <-pixelBatches:
+					c.SSEvent("renderUpdate", gin.H{"message": batch})
+					c.Writer.Flush()
+				default:
+					break streamLoop
+				}
+			}
+		}
 	}
 
 	c.SSEvent("done", gin.H{"message": "Render complete"})
