@@ -58,9 +58,14 @@ inline void to_json(nlohmann::json &j, const work_info &w)
 
 inline void from_json(const nlohmann::json &j, work_info &w)
 {
-    if (j.contains("instances"))
+    // Treat missing OR null fields as empty/zero. The master in
+    // particular receives an empty instance list, which a poorly-
+    // initialized Go slice can serialize as null instead of [].
+    if (j.contains("instances") && !j.at("instances").is_null())
         j.at("instances").get_to(w.instances);
-    if (j.contains("total_size"))
+    else
+        w.instances.clear();
+    if (j.contains("total_size") && !j.at("total_size").is_null())
         j.at("total_size").get_to(w.total_size);
 }
 
@@ -84,14 +89,14 @@ inline void to_json(nlohmann::json &j, const aabb_entry &a)
 
 inline void from_json(const nlohmann::json &j, aabb_entry &a)
 {
-    if (j.contains("worker_id"))
+    if (j.contains("worker_id") && !j.at("worker_id").is_null())
         j.at("worker_id").get_to(a.worker_id);
-    if (j.contains("aabb"))
+    if (j.contains("aabb") && !j.at("aabb").is_null())
     {
         const auto &b = j.at("aabb");
-        if (b.contains("min"))
+        if (b.contains("min") && !b.at("min").is_null())
             b.at("min").get_to(a.min);
-        if (b.contains("max"))
+        if (b.contains("max") && !b.at("max").is_null())
             b.at("max").get_to(a.max);
     }
 }
@@ -147,10 +152,12 @@ inline void to_json(nlohmann::json &j, const worker_info &w)
 
 inline void from_json(const nlohmann::json &j, worker_info &w)
 {
-    if (j.contains("scene_info"))
+    if (j.contains("scene_info") && !j.at("scene_info").is_null())
         j.at("scene_info").get_to(w.scene_info);
-    if (j.contains("aabb_table"))
+    if (j.contains("aabb_table") && !j.at("aabb_table").is_null())
         j.at("aabb_table").get_to(w.aabb_table);
+    else
+        w.aabb_table.clear();
     if (j.contains("scene_bucket"))
         j.at("scene_bucket").get_to(w.scene_bucket);
     if (j.contains("scene_root"))

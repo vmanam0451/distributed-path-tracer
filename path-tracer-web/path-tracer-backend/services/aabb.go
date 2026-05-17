@@ -25,10 +25,26 @@ type AABBEntry struct {
 
 // EmptyAABB returns an AABB that contains no points. Useful as the
 // starting value when computing the union over a list of primitives.
+//
+// Note: the +/-inf sentinel is NOT JSON-marshalable. Use
+// FiniteEmptyAABB when you need a serializable "empty" box (e.g. for
+// a worker with no assigned geometry).
 func EmptyAABB() AABB {
 	return AABB{
 		Min: Vec3{math.Inf(1), math.Inf(1), math.Inf(1)},
 		Max: Vec3{math.Inf(-1), math.Inf(-1), math.Inf(-1)},
+	}
+}
+
+// FiniteEmptyAABB returns an AABB that is degenerate (min > max on
+// every axis) but uses finite values so it survives JSON marshaling.
+// The C++ ray-AABB tester treats any min > max box as a guaranteed
+// miss, so this is safe to put in the AABB table for a worker that
+// happens to own no primitives.
+func FiniteEmptyAABB() AABB {
+	return AABB{
+		Min: Vec3{1, 1, 1},
+		Max: Vec3{-1, -1, -1},
 	}
 }
 

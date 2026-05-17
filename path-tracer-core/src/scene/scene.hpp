@@ -20,8 +20,7 @@ class distributed_scene
 {
   public:
     void load_scene(const std::string &scene_s3_bucket, const std::string &scene_s3_root,
-                    const std::vector<models::scene_instance> &instances,
-                    const std::filesystem::path &gltf_path);
+                    const std::vector<models::scene_instance> &instances, const std::filesystem::path &gltf_path);
     models::intersect_result_min intersect_min_result(const geometry::ray &ray) const;
     models::intersect_result intersect(const geometry::ray &ray) const;
 

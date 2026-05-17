@@ -17,8 +17,8 @@ namespace cloud
 static scene::transform transform_from_world_matrix(const std::array<float, 16> &m)
 {
     math::fvec3 origin(m[12], m[13], m[14]);
-    math::fmat3 basis(math::fvec3(m[0], m[1], m[2]),  // column 0
-                      math::fvec3(m[4], m[5], m[6]),  // column 1
+    math::fmat3 basis(math::fvec3(m[0], m[1], m[2]),   // column 0
+                      math::fvec3(m[4], m[5], m[6]),   // column 1
                       math::fvec3(m[8], m[9], m[10])); // column 2
     return scene::transform(origin, basis);
 }

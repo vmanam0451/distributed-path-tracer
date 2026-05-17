@@ -256,9 +256,16 @@ func PreprocessScene(ctx context.Context, cfg aws.Config, bucket, sceneRoot stri
 		}
 
 		splitScene.SplitWork[workerID] = info
+		// EmptyAABB uses +/-inf which can't be marshaled to JSON.
+		// Substitute a finite degenerate box; the worker treats any
+		// min > max box as a guaranteed ray-miss in the pre-filter.
+		publishBox := leafBox
+		if publishBox.IsEmpty() {
+			publishBox = FiniteEmptyAABB()
+		}
 		splitScene.AABBTable = append(splitScene.AABBTable, AABBEntry{
 			WorkerID: fmt.Sprintf("%d", workerID),
-			AABB:     leafBox,
+			AABB:     publishBox,
 		})
 	}
 
@@ -348,7 +355,10 @@ func BuildWorkerInfos(
 	// Master worker: owns no geometry, but still receives the AABB
 	// table so it can route or log intersection traffic if needed.
 	infos["master"] = WorkerInfo{
-		SceneInfo:         WorkerSceneInfo{Instances: nil, TotalSize: 0},
+		// Initialize Instances as an empty slice (not nil) so it
+		// serializes to [] rather than null — nlohmann's get_to
+		// rejects null for std::vector.
+		SceneInfo:         WorkerSceneInfo{Instances: []SceneInstance{}, TotalSize: 0},
 		AABBTable:         splitScene.AABBTable,
 		SceneBucket:       req.SceneBucket,
 		SceneRoot:         req.SceneKey,
