@@ -19,16 +19,27 @@ class PathTracerWorkerConstruct(Construct):
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
+        # Two AZs because the web service ALB lives in this VPC and requires
+        # subnets in at least two AZs. Public subnets are present only to host
+        # the ALB; worker and web tasks both run in PRIVATE_ISOLATED subnets
+        # and reach AWS APIs via the VPC endpoints added below.
         vpc = ec2.Vpc(
             self, "DistributedPathTracerVPC",
-            subnet_configuration = [
+            subnet_configuration=[
+                ec2.SubnetConfiguration(
+                    name="Public",
+                    subnet_type=ec2.SubnetType.PUBLIC,
+                    cidr_mask=24,
+                ),
                 ec2.SubnetConfiguration(
                     name="Private",
                     subnet_type=ec2.SubnetType.PRIVATE_ISOLATED,
-                    cidr_mask=24
-                )
+                    cidr_mask=24,
+                ),
             ],
-            max_azs=1)
+            nat_gateways=0,  # No NAT — private tasks use VPC endpoints
+            max_azs=2,
+        )
 
         task_security_group = ec2.SecurityGroup(
             self, "TaskSecurityGroup",
@@ -82,6 +93,15 @@ class PathTracerWorkerConstruct(Construct):
         vpc.add_interface_endpoint(
             "ServiceDiscoveryEndpoint",
             service=ec2.InterfaceVpcEndpointAwsService.CLOUD_MAP_SERVICE_DISCOVERY,
+            security_groups=[endpoint_security_group]
+        )
+
+        # ECS endpoint is required by the web backend (in PRIVATE_ISOLATED
+        # subnets, no NAT) so it can call ecs:RunTask / ListTasks / StopTask
+        # to launch and reap worker tasks.
+        vpc.add_interface_endpoint(
+            "ECSEndpoint",
+            service=ec2.InterfaceVpcEndpointAwsService.ECS,
             security_groups=[endpoint_security_group]
         )
 
