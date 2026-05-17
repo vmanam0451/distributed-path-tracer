@@ -4,7 +4,7 @@ A naive implementation of a distributed path tracer.
 
 # Demo
 
-[Sample Render](https://github.com/vmanam0451/distributed-path-tracer/blob/main/distributed-path-tracer-render.mp4)
+[Sample Render]((https://youtu.be/A9Vivr1lrtQ))
 
 # Code Overview:
 
