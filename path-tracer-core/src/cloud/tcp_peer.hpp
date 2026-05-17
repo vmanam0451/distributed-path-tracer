@@ -1,6 +1,7 @@
 #pragma once
 
 #include "models/cloud_ray.hpp"
+#include "models/pixel.hpp"
 #include <atomic>
 #include <boost/asio.hpp>
 #include <concurrentqueue/concurrentqueue.h>
@@ -17,6 +18,7 @@ namespace cloud
 
 constexpr uint16_t DEFAULT_TCP_PORT = 9000;
 constexpr size_t TCP_BATCH_SIZE = 2000;               // Smaller batches for reliability
+constexpr size_t PIXEL_BATCH_SIZE = 2500;             // ~85B/pixel JSON -> ~212KB
 constexpr size_t MESSAGE_HEADER_SIZE = 8;             // 4 bytes for type + 4 bytes for length
 constexpr size_t MAX_MESSAGE_SIZE = 50 * 1024 * 1024; // 50MB max message size
 
@@ -24,7 +26,8 @@ enum class MessageType : uint32_t
 {
     RAY_BATCH = 1,
     TERMINATE = 2,
-    HANDSHAKE = 3
+    HANDSHAKE = 3,
+    PIXEL_BATCH = 4
 };
 
 struct peer_info
@@ -38,6 +41,13 @@ struct peer_info
 struct outbound_ray
 {
     models::cloud_ray ray;
+    std::string target_id;
+};
+
+// Outbound pixel with target (master -> web)
+struct outbound_pixel
+{
+    models::pixel pixel;
     std::string target_id;
 };
 
@@ -57,6 +67,15 @@ class tcp_peer
 
     // Enqueue a single ray for sending (lock-free)
     void enqueue_ray(const models::cloud_ray &ray, const std::string &target_id);
+
+    // Enqueue a single pixel for sending (lock-free) - used by master to push
+    // accumulated pixels to the web backend.
+    void enqueue_pixel(const models::pixel &pixel, const std::string &target_id);
+
+    // Register a peer with a known host/port without going through Cloud Map.
+    // Used by the master to dial the web backend, which is not part of the
+    // discovery namespace.
+    void register_peer(const std::string &worker_id, const std::string &host, uint16_t port);
 
     // Send termination signal to all workers
     void send_terminate_all();
@@ -107,11 +126,14 @@ class tcp_peer
 
     // Sending - synchronous and protected by mutex
     void flush_thread_fn();
+    void pixel_flush_thread_fn();
     void send_batch_to_peer(const std::string &target_id, std::vector<models::cloud_ray> &rays);
+    void send_pixel_batch_to_peer(const std::string &target_id, std::vector<models::pixel> &pixels);
 
     // Binary serialization (more efficient than JSON)
     std::vector<uint8_t> serialize_rays_binary(const std::vector<models::cloud_ray> &rays);
     std::vector<models::cloud_ray> deserialize_rays_binary(const std::vector<uint8_t> &data);
+    std::vector<uint8_t> serialize_pixels(const std::vector<models::pixel> &pixels);
 
     // Peer connection structure with write mutex for thread safety
     struct peer_connection
@@ -141,6 +163,7 @@ class tcp_peer
 
     // Lock-free outbound queue
     moodycamel::ConcurrentQueue<outbound_ray> m_outbound_queue;
+    moodycamel::ConcurrentQueue<outbound_pixel> m_outbound_pixel_queue;
 
     // Peer connections
     std::vector<std::shared_ptr<peer_connection>> m_peers;
@@ -158,7 +181,9 @@ class tcp_peer
 
     // Flush thread
     std::thread m_flush_thread;
-    std::chrono::milliseconds m_flush_interval{25}; // Faster flush for responsiveness
+    std::thread m_pixel_flush_thread;
+    std::chrono::milliseconds m_flush_interval{25};        // Faster flush for responsiveness
+    std::chrono::milliseconds m_pixel_flush_interval{100}; // Pixels can be batched a bit longer
 
     // Cloud Map
     std::string m_service_id;

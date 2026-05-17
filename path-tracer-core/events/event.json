@@ -33,8 +33,8 @@
     "scene_bucket": "distributed-path-tracer",
     "scene_root": "scenes/sponza-new/",
     "worker_id": "1",
-    "sqs_queue_arn": "",
-    "sns_topic_arn": "",
+    "web_host": "",
+    "web_port": 0,
     "num_workers": 1,
 
     "samples": 50,

@@ -9,8 +9,6 @@
 #include <aws/servicediscovery/model/DeregisterInstanceRequest.h>
 #include <aws/servicediscovery/model/DiscoverInstancesRequest.h>
 #include <aws/servicediscovery/model/RegisterInstanceRequest.h>
-#include <aws/sqs/SQSClient.h>
-#include <aws/sqs/model/SendMessageRequest.h>
 #include <cgltf/custom_cgltf.h>
 #include <concurrentqueue/concurrentqueue.h>
 #include <spdlog/spdlog.h>

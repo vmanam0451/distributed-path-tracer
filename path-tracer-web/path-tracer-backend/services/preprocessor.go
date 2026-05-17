@@ -32,6 +32,9 @@ type SubGrid struct {
 }
 
 // WorkerInfo is the full configuration passed to each Fargate worker task.
+//
+// WebHost/WebPort are only populated for the master and tell it where to dial
+// the backend's TCP listener to push pixel batches.
 type WorkerInfo struct {
 	SceneInfo         WorkerSceneInfo `json:"scene_info"`
 	SceneBucket       string          `json:"scene_bucket"`
@@ -49,8 +52,9 @@ type WorkerInfo struct {
 	CloudMapNamespace string          `json:"cloud_map_namespace"`
 	CloudMapService   string          `json:"cloud_map_service"`
 	CloudMapServiceId string          `json:"cloud_map_service_id"`
-	ResultsQueueURL   string          `json:"results_queue_url"`
 	AWSRegion         string          `json:"aws_region"`
+	WebHost           string          `json:"web_host,omitempty"`
+	WebPort           int             `json:"web_port,omitempty"`
 }
 
 // SplitGrid divides the image into horizontal strips, one per worker.
@@ -261,12 +265,12 @@ func BuildWorkerInfos(
 			CloudMapNamespace: req.CloudMapNamespace,
 			CloudMapService:   req.CloudMapService,
 			CloudMapServiceId: req.CloudMapServiceId,
-			ResultsQueueURL:   "",
 			AWSRegion:         req.AWSRegion,
 		}
 	}
 
-	// Master worker: has no scene work, but gets the results queue and full image dimensions
+	// Master worker: has no scene work; carries the web backend's TCP endpoint
+	// so it can dial back with PIXEL_BATCH messages.
 	infos["master"] = WorkerInfo{
 		SceneInfo:         WorkerSceneInfo{Work: map[string][]int{}, TotalSize: 0},
 		SceneBucket:       req.SceneBucket,
@@ -284,8 +288,9 @@ func BuildWorkerInfos(
 		CloudMapNamespace: req.CloudMapNamespace,
 		CloudMapService:   req.CloudMapService,
 		CloudMapServiceId: req.CloudMapServiceId,
-		ResultsQueueURL:   req.ResultsQueueURL,
 		AWSRegion:         req.AWSRegion,
+		WebHost:           req.WebHost,
+		WebPort:           req.WebPort,
 	}
 
 	return infos
@@ -303,6 +308,9 @@ type WorkerInfoParams struct {
 	CloudMapNamespace string
 	CloudMapService   string
 	CloudMapServiceId string
-	ResultsQueueURL   string
 	AWSRegion         string
+	// WebHost / WebPort tell the master where to dial the backend's TCP
+	// listener for pixel delivery.
+	WebHost string
+	WebPort int
 }

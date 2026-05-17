@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cloud/sqs.hpp"
 #include "cloud/tcp_peer.hpp"
 #include "models/cloud_ray.hpp"
 #include "models/work_info.hpp"
@@ -42,7 +41,6 @@ class master : public application
   private:
     models::worker_info m_worker_info;
     std::shared_ptr<cloud::tcp_peer> m_tcp_peer;
-    std::unique_ptr<cloud::sqs_sender> m_sqs_sender;
 
     std::vector<std::vector<pixel>> pixels;
     math::uvec2 resolution = math::fvec2(640, 480);

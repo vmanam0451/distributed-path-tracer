@@ -69,7 +69,7 @@ void master::process_accumulation()
             .alpha = pixels[x][y].alpha,
         };
 
-        m_sqs_sender->enqueue(nlohmann::json(pixel_data).dump());
+        m_tcp_peer->enqueue_pixel(pixel_data, models::WEB_ID);
     }
 }
 } // namespace processors

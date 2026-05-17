@@ -29,6 +29,7 @@ namespace models
 // Worker ID constants for routing
 const std::string MASTER_ID = "MASTER";
 const std::string WORKERS_ID = "WORKERS";
+const std::string WEB_ID = "WEB";
 
 enum ray_stage
 {
