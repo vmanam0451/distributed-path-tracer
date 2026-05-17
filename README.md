@@ -29,6 +29,6 @@ A naive implementation of a distributed path tracer.
 
 
 # Credits
-**Ray Ferric** - For providing most of the core path tracing library https://github.com/rayferric/path-tracer/tree/main. The only change I made was how the scene was loaded. Also, the core path tracing tracing algorithm is different as my implementation is iterative rather than recursive.
+**Ray Ferric** - For providing most of the core path tracing library https://github.com/rayferric/path-tracer/tree/main. The changes I made were: how a scene is loaded and the core path tracing tracing algorithm itself as my implementation is iterative rather than recursive.
 
 **Florian Amsallem** - For writing this cool article on KD Trees. https://flomonster.fr/articles/kdtree.html  
