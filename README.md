@@ -4,7 +4,7 @@ A naive implementation of a distributed path tracer.
 
 # Demo
 
-[Sample Render]((https://youtu.be/A9Vivr1lrtQ))
+[![Sample Render](https://img.youtube.com/vi/A9Vivr1lrtQ/0.jpg)](https://www.youtube.com/watch?v=A9Vivr1lrtQ)
 
 # Code Overview:
 
