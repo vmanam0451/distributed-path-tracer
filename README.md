@@ -24,7 +24,7 @@ A naive implementation of a distributed path tracer.
  - **Smarter scene partitioning**: Biggest source of inefficency is the broadcast and gather needed to do intersection tests. Investigate different methods to alleivate this. For ex, maybe split a scene spaitally rather than by primitive. Each worker can have AABB such that it locally run a high-level intersection test that returns a subset of workers. Distributed octree?
  - **Microservice oriented design**: Currently a worker does everything (ray generation, intersection, shading). Might be better to create specialized workers that do a dedicated tasks as each role can independently scale.
  - **GPU intersection**: Investigate using CUDA to perform intersections on a GPU.
- - **Fault tolerance**: Currently, no fault-tolerance exists if a master/worker dies.
+ - **Fault tolerance**: Currently, no fault-tolerance exists if a master/worker dies. Can maybe use spot instances?
  - **Binary format**: Currently, workers communicate with JSON over TCP. Might be better if data was binary encoded.
 
 
